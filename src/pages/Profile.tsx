@@ -72,8 +72,8 @@ export function Profile() {
             <User className="h-7 w-7 text-amber-400" />
           </div>
           <div>
-            <span className="text-[11px] uppercase tracking-widest font-mono text-stone-400 font-bold block">
-              ХЭРЭГЛЭГЧИЙН ХУУДАС
+            <span className="text-xs text-stone-400 font-bold block">
+              Хэрэглэгчийн хуудас
             </span>
             <h1 className="font-serif text-2xl font-bold text-stone-900 tracking-tight">Миний цахим сан</h1>
             <p className="text-stone-500 text-xs font-mono">{profile.phoneNumber}</p>

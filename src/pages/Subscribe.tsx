@@ -94,8 +94,8 @@ export function Subscribe() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center mb-10">
-        <span className="text-xs uppercase tracking-widest font-mono text-amber-600 font-bold block mb-1">
-          АЛБАН ЁСНЫ ЗАХИАЛГА
+        <span className="text-xs text-amber-600 font-bold block mb-1">
+          Албан ёсны захиалга
         </span>
         <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900 mb-2">Сэтгүүл захиалах</h1>
         <p className="text-stone-500 text-sm">Барилгын салбарын тэргүүлэх мэдээлэл, үнэ ханшийн судалгааг цаг алдалгүй аваарай</p>

@@ -14,7 +14,7 @@ export function Admin() {
         {/* Sidebar Navigation */}
         <div className="w-full sm:w-64 shrink-0">
           <div className="bg-white rounded-3xl border border-stone-200/90 p-4 sticky top-24 shadow-sm">
-            <h2 className="text-xs font-mono font-bold text-stone-400 uppercase tracking-widest mb-4 px-2">Удирдлага</h2>
+            <h2 className="text-xs font-bold text-stone-400 mb-4 px-2">Удирдлага</h2>
             <nav className="space-y-1">
               <button
                 onClick={() => setActiveTab('orders')}

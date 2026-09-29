@@ -87,8 +87,8 @@ export function TrackOrder() {
     <div className="max-w-3xl mx-auto mt-6">
       <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-sm border border-stone-200/90 mb-8">
         <div className="text-center mb-8">
-          <span className="text-xs uppercase tracking-widest font-mono text-amber-600 font-bold block mb-1">
-            ХҮРГЭЛТИЙН ХЯНАЛТ
+          <span className="text-xs text-amber-600 font-bold block mb-1">
+            Хүргэлтийн хяналт
           </span>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Захиалга шалгах</h1>
           <p className="text-stone-500 text-xs mt-2 max-w-sm mx-auto font-sans">

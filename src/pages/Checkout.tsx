@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { MOCK_MAGAZINES } from '../lib/data';
+import { findHeyzineMagazine } from '../lib/heyzine';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -23,6 +24,11 @@ export function Checkout() {
     if (!magazine && id) {
       const fetchMag = async () => {
         try {
+          const heyzineMag = await findHeyzineMagazine(id);
+          if (heyzineMag) {
+            setMagazine(heyzineMag);
+            return;
+          }
           const docRef = doc(db, 'magazines', id);
           const snap = await getDoc(docRef);
           if (snap.exists()) {

@@ -21,6 +21,9 @@ export interface Magazine {
   heyzineLink?: string; // Link to the digital version on heyzine
   issueNumber: string;
   category?: string;
+  pages?: number;
+  pdfUrl?: string;
+  source?: 'heyzine';
 }
 
 export interface Order {
