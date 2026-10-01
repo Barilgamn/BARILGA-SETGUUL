@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, ReactNode } from 'react';
+import { Fragment, useState, useEffect, useRef, ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { fetchHeyzineMagazines } from '../lib/heyzine';
 import { CATALOG_COVER } from './HouseCatalog';
 import { listMagazines } from '../lib/records';
 import { SaveButton } from '../components/SaveButton';
+import { PagePreview, previewPdfUrl } from '../components/PagePreview';
 import { ArrowRight, ArrowUpRight, Search, Check, Lock } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 
@@ -248,14 +249,16 @@ export function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
             {/* Cover — first on phones so the issue is visible without scrolling */}
             <div className="order-first lg:order-last lg:col-span-5 flex justify-center lg:justify-end">
-              <Link to={readHref(leadIssue)} className="group block w-56 sm:w-72 lg:w-full lg:max-w-md">
-                <Cover
-                  src={leadIssue.coverImage}
-                  alt={leadIssue.title}
-                  eager
-                  className="shadow-[0_40px_80px_-30px_rgba(28,25,23,0.55)] transition-transform duration-500 group-hover:-translate-y-1.5"
+              {/* Cover doubles as a viewer for the first pages */}
+              <Fragment key={leadIssue.id}>
+                <PagePreview
+                  coverImage={leadIssue.coverImage}
+                  title={displayTitle(leadIssue)}
+                  pdfUrl={previewPdfUrl(leadIssue)}
+                  readHref={readHref(leadIssue)}
+                  className="w-64 sm:w-72 lg:w-full lg:max-w-md"
                 />
-              </Link>
+              </Fragment>
             </div>
 
             <div className="lg:col-span-7 text-center lg:text-left">
