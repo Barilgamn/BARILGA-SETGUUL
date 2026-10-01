@@ -6,8 +6,8 @@ import { ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 // Page 1 is the cover image we already have; later pages are drawn from the
 // PDF with pdf.js, which is only downloaded once the reader starts flipping
 // and fetches just the byte ranges those pages need (Heyzine's CDN allows
-// cross-origin range requests). Paid issues have no PDF link, so they get the
-// plain cover.
+// cross-origin range requests). Paid issues never reach the client with their
+// PDF, so theirs comes from /api/preview: a copy of just the first pages.
 
 const PREVIEW_PAGES = 6;
 const PDFJS_VERSION = '5.7.284';
@@ -33,9 +33,10 @@ function loadPdfjs() {
 }
 
 // The PDF behind an issue: given directly, or next to its Heyzine thumbnail
-// (".../v3/<hash>.pdf-thumb.jpg" sits beside ".../v3/<hash>.pdf")
-export function previewPdfUrl(issue: { pdfUrl?: string; coverImage?: string; locked?: boolean }): string | null {
-  if (issue.locked) return null;
+// (".../v3/<hash>.pdf-thumb.jpg" sits beside ".../v3/<hash>.pdf"). For paid
+// issues, the server's first-pages copy.
+export function previewPdfUrl(issue: { id: string; pdfUrl?: string; coverImage?: string; locked?: boolean }): string | null {
+  if (issue.locked) return `/api/preview/${encodeURIComponent(issue.id)}`;
   if (issue.pdfUrl) return issue.pdfUrl;
   const m = issue.coverImage?.match(/^(https:\/\/cdnm?\.heyzine\.com\/files\/uploaded\/.+\.pdf)-thumb\.jpg$/);
   return m ? m[1] : null;
@@ -46,10 +47,11 @@ interface Props {
   title: string;
   pdfUrl: string | null;
   readHref: string;
+  ctaLabel?: string;
   className?: string;
 }
 
-export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '' }: Props) {
+export function PagePreview({ coverImage, title, pdfUrl, readHref, ctaLabel = 'Бүтнээр нь унших', className = '' }: Props) {
   const [index, setIndex] = useState(0); // 0 = cover; PREVIEW_PAGES = "keep reading" slide
   const [doc, setDoc] = useState<PdfDoc | null>(null);
   const [failed, setFailed] = useState(false);
@@ -69,9 +71,18 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
     if (doc || !pdfUrl) return doc;
     setOpening(true);
     try {
-      const pdfjs = await loadPdfjs();
+      // /api/preview answers with where the first-pages copy is stored
+      const [pdfjs, url] = await Promise.all([
+        loadPdfjs(),
+        pdfUrl.startsWith('/api/')
+          ? fetch(pdfUrl).then(async res => {
+              if (!res.ok) throw new Error(`preview: ${res.status}`);
+              return (await res.json()).url as string;
+            })
+          : pdfUrl,
+      ]);
       const loaded = await pdfjs.getDocument({
-        url: pdfUrl,
+        url,
         disableAutoFetch: true,
         disableStream: true,
         rangeChunkSize: 262144,
@@ -174,11 +185,11 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
         )}
 
         {index === lastIndex && (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-5 bg-stone-950 text-white px-14 py-8 text-center">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-5 bg-stone-950 text-white px-6 py-8 text-center">
             <p className="font-serif text-2xl font-bold leading-snug">Үргэлжлүүлэн унших уу?</p>
             <p className="text-sm text-stone-400">Эхний {pageCount} хуудсыг үзлээ.</p>
-            <Link to={readHref} className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-stone-950 text-sm font-semibold hover:bg-amber-300">
-              Бүтнээр нь унших <ArrowRight className="w-4 h-4" />
+            <Link to={readHref} className="inline-flex items-center gap-2 px-5 py-3 whitespace-nowrap bg-amber-400 text-stone-950 text-sm font-semibold hover:bg-amber-300">
+              {ctaLabel} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         )}

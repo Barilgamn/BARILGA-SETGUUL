@@ -256,6 +256,7 @@ export function Home() {
                   title={displayTitle(leadIssue)}
                   pdfUrl={previewPdfUrl(leadIssue)}
                   readHref={readHref(leadIssue)}
+                  ctaLabel={leadIssue.locked ? `Худалдаж авах · ${leadIssue.price.toLocaleString()}₮` : undefined}
                   className="w-64 sm:w-72 lg:w-full lg:max-w-md"
                 />
               </Fragment>

@@ -1,6 +1,7 @@
 // All /api routes. Imported by server.ts for local development and by
 // api/index.ts as the Vercel serverless function.
 import express from 'express';
+import { PDFDocument } from 'pdf-lib';
 import cors from 'cors';
 import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken, userOwnsIssue } from './supabase.js';
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
@@ -236,13 +237,16 @@ app.get('/api/heyzine/flipbooks', async (_req, res) => {
 
 // What an issue id stands for: the id purchases are recorded against, its
 // price (0 = free) and the real flipbook link and cover.
-async function resolveIssue(id: string): Promise<{ issueId: string; price: number; link: string; cover: string } | null> {
+async function resolveIssue(
+  id: string
+): Promise<{ issueId: string; price: number; link: string; cover: string; pdf: string } | null> {
   const rows = await loadMagazines();
   const fromRow = (row: any) => ({
     issueId: row.id,
     price: Number(row.price_digital) > 0 ? Number(row.price_digital) : 0,
     link: row.heyzine_link || '',
     cover: row.cover_image || '',
+    pdf: row.pdf_url || pdfBesideThumb(row.cover_image),
   });
   if (!id.startsWith('hz-')) {
     const row = rows.find(r => r.id === id);
@@ -254,7 +258,12 @@ async function resolveIssue(id: string): Promise<{ issueId: string; price: numbe
   const key = flipbookKey(item.heyzineLink, item.coverImage);
   const row = key && rows.find(r => flipbookKey(r.heyzine_link, r.cover_image) === key);
   if (row) return fromRow(row);
-  return { issueId: item.id, price: prices.get(item.id) || 0, link: item.heyzineLink, cover: item.coverImage };
+  return { issueId: item.id, price: prices.get(item.id) || 0, link: item.heyzineLink, cover: item.coverImage, pdf: item.pdfUrl };
+}
+
+// Heyzine keeps the uploaded PDF next to its thumbnail: ".../<hash>.pdf-thumb.jpg"
+function pdfBesideThumb(cover: string): string {
+  return String(cover || '').match(/^(https:\/\/cdnm?\.heyzine\.com\/files\/uploaded\/.+\.pdf)-thumb\.jpg$/)?.[1] || '';
 }
 
 app.get('/api/cover/:id', async (req, res) => {
@@ -304,6 +313,58 @@ app.get('/api/heyzine/lookup', async (req, res) => {
   }
 });
 
+
+// Free first pages of any issue, paid ones included. The page preview can't be
+// given the real PDF of a paid issue, so the first pages are copied into a
+// small PDF of their own, stored once in a public Storage bucket, and the
+// client is handed that file's address.
+const PREVIEW_PAGES = 6;
+const PREVIEW_BUCKET = 'previews';
+let previewBucketReady = false;
+
+async function ensurePreviewBucket() {
+  if (previewBucketReady || !admin) return;
+  const { error } = await admin.storage.getBucket(PREVIEW_BUCKET);
+  if (error) {
+    const created = await admin.storage.createBucket(PREVIEW_BUCKET, { public: true });
+    if (created.error && !/already exists/i.test(created.error.message)) throw created.error;
+  }
+  previewBucketReady = true;
+}
+
+app.get('/api/preview/:id', async (req, res) => {
+  try {
+    const issue = await resolveIssue(req.params.id);
+    if (!issue?.pdf || !admin) return res.status(404).json({ error: 'no-preview' });
+
+    // The flipbook key in the name means a replaced PDF gets a fresh preview
+    const path = `${issue.issueId}-${flipbookKey(issue.pdf, issue.link, issue.cover) || 'pdf'}.pdf`;
+    const url = admin.storage.from(PREVIEW_BUCKET).getPublicUrl(path).data.publicUrl;
+
+    const existing = await fetch(url, { method: 'HEAD' });
+    if (!existing.ok) {
+      const source = await fetch(issue.pdf);
+      if (!source.ok) return res.status(502).json({ error: 'pdf-unavailable' });
+      const full = await PDFDocument.load(await source.arrayBuffer(), { ignoreEncryption: true });
+      const preview = await PDFDocument.create();
+      const count = Math.min(PREVIEW_PAGES, full.getPageCount());
+      const pages = await preview.copyPages(full, Array.from({ length: count }, (_, i) => i));
+      pages.forEach(page => preview.addPage(page));
+      const bytes = await preview.save();
+
+      await ensurePreviewBucket();
+      const { error } = await admin.storage
+        .from(PREVIEW_BUCKET)
+        .upload(path, bytes, { contentType: 'application/pdf', upsert: true, cacheControl: '31536000' });
+      if (error) throw error;
+    }
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
+    return res.json({ url });
+  } catch (error: any) {
+    console.error('Preview failed:', error);
+    return res.status(500).json({ error: 'preview-failed' });
+  }
+});
 
 app.get('/api/read/:id', async (req, res) => {
   try {
