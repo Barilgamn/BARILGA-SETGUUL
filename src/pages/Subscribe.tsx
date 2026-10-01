@@ -7,6 +7,7 @@ import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
 import { Invoice, transferReference } from '../components/Invoice';
 import { PLAN_PRICES, PlanId, planSavings } from '../lib/plans';
 import { BankSettings } from '../types';
+import { BankDetails } from '../components/BankDetails';
 import { BookOpen, MapPin, CreditCard, CheckCircle, ChevronRight, Loader2, FileText } from 'lucide-react';
 
 const PLANS = {
@@ -279,16 +280,8 @@ export function Subscribe() {
               {!bank ? (
                 <Loader2 className="animate-spin h-5 w-5 text-slate-400" />
               ) : (
-                <div className="space-y-1.5 text-slate-800">
-                  <p><span className="text-slate-600 w-28 inline-block">Банк:</span> <b>{bank.bankName}</b></p>
-                  <p><span className="text-slate-600 w-28 inline-block">Данс:</span> <b className="font-mono text-lg select-all">{bank.accountNumber}</b></p>
-                  <p><span className="text-slate-600 w-28 inline-block">Хүлээн авагч:</span> <b>{bank.accountName}</b></p>
-                </div>
+                <BankDetails bank={bank} reference={reference} />
               )}
-              <p className="text-slate-800 border-t border-stone-400/60 pt-3">
-                Гүйлгээний утга дээр <b>нэр, утасны дугаараа заавал</b> бичнэ үү:{' '}
-                <span className="font-mono font-bold bg-white/70 px-1.5 py-0.5 select-all">{reference}</span>
-              </p>
               <p className="text-sm text-slate-600">Холбогдох утас: <a href={CONTACT_PHONE_TEL} className="font-semibold text-[#0F172A]">{CONTACT_PHONE}</a></p>
             </div>
 

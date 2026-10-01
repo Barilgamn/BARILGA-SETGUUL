@@ -6,6 +6,7 @@ export const DEFAULT_BANK: BankSettings = {
   bankName: 'Хаан банк',
   accountNumber: '5175009575',
   accountName: 'БЗМТөв',
+  iban: 'MN910005005175009575',
 };
 
 export const CONTACT_PHONE = '9100-0233';

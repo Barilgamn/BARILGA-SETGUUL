@@ -366,7 +366,7 @@ function PricesSection() {
 }
 
 function BankSection() {
-  const [form, setForm] = useState<BankSettings>({ bankName: '', accountNumber: '', accountName: '' });
+  const [form, setForm] = useState<BankSettings>({ bankName: '', accountNumber: '', accountName: '', iban: '' });
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -386,6 +386,7 @@ function BankSection() {
         bankName: form.bankName.trim(),
         accountNumber: form.accountNumber.trim(),
         accountName: form.accountName.trim(),
+        iban: (form.iban || '').replace(/\s+/g, '').toUpperCase(),
       });
       setSaved(true);
     } catch (err) {
@@ -402,7 +403,7 @@ function BankSection() {
     <label className="block space-y-1.5">
       <span className="text-sm font-semibold text-stone-800">{label}</span>
       <input
-        value={form[key]}
+        value={form[key] || ''}
         onChange={e => {
           setSaved(false);
           setForm(f => ({ ...f, [key]: e.target.value }));
@@ -418,6 +419,7 @@ function BankSection() {
       <p className="text-sm text-stone-600">Нэхэмжлэх дээр харагдах данс. Худалдан авагч гүйлгээний утгад нэхэмжлэхийн дугаараа бичнэ.</p>
       {field('bankName', 'Банк', 'Хаан банк')}
       {field('accountNumber', 'Дансны дугаар', '5000 0000 00')}
+      {field('iban', 'IBAN', 'MN91000500 5175009575')}
       {field('accountName', 'Хүлээн авагч', 'Барилга МН ХХК')}
       <div className="flex items-center gap-3">
         <button onClick={handleSave} disabled={saving} className="px-6 py-3 rounded-xl bg-stone-900 text-white text-sm font-semibold disabled:opacity-50">

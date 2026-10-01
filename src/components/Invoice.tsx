@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, Printer } from 'lucide-react';
+import { Loader2, Printer } from 'lucide-react';
 import { BankSettings } from '../types';
 import { getBankSettings } from '../lib/purchases';
 import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
+import { BankDetails } from './BankDetails';
 
 export interface InvoiceProps {
   number: string;
@@ -85,24 +86,8 @@ export function Invoice({ number, date, buyer, items, reference, note }: Invoice
           {!bank ? (
             <Loader2 className="w-4 h-4 animate-spin text-stone-400" />
           ) : (
-            <dl className="grid grid-cols-[auto,1fr] gap-x-5 gap-y-1.5">
-              <dt className="text-stone-600">Банк</dt>
-              <dd className="font-semibold text-stone-950">{bank.bankName}</dd>
-              <dt className="text-stone-600">Данс</dt>
-              <dd className="font-mono text-base font-bold text-stone-950 select-all">{bank.accountNumber}</dd>
-              <dt className="text-stone-600">Хүлээн авагч</dt>
-              <dd className="font-semibold text-stone-950">{bank.accountName}</dd>
-              <dt className="text-stone-600">Дүн</dt>
-              <dd className="font-semibold text-stone-950 tabular-nums">{total.toLocaleString()}₮</dd>
-            </dl>
+            <BankDetails bank={bank} amount={total} reference={reference} />
           )}
-          <div className="flex gap-2.5 items-start border-t border-stone-400/60 pt-3">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <p className="text-stone-800">
-              Гүйлгээний утга дээр <strong>нэр, утасны дугаараа заавал</strong> бичнэ үү:{' '}
-              <span className="font-mono font-bold text-stone-950 select-all bg-white/70 px-1.5 py-0.5">{reference}</span>
-            </p>
-          </div>
         </div>
 
         <p className="text-sm text-stone-600">

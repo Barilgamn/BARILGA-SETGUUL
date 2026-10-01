@@ -134,4 +134,6 @@ export interface BankSettings {
   bankName: string;
   accountNumber: string;
   accountName: string;
+  // International form of the account, for transfers from other banks
+  iban?: string;
 }
