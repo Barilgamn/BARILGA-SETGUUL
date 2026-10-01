@@ -14,6 +14,23 @@ export function Layout() {
     setMobileMenuOpen(false);
   }, [location.pathname, location.hash]);
 
+  // A new page starts at its top (or at its #section), not at the old scroll
+  useEffect(() => {
+    if (!location.hash) {
+      window.scrollTo(0, 0);
+      return;
+    }
+    // The section may render only once its data arrives
+    const timer = setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' }), 300);
+    return () => clearTimeout(timer);
+  }, [location.pathname, location.hash]);
+
+  // The logo also works on the home page itself: back to the top
+  const goHome = () => {
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const navLinks = [
     { label: 'Цахим сэтгүүл', path: '/#magazines' },
     { label: 'Сэтгүүл захиалга', path: '/#subscriptions' },
@@ -33,7 +50,7 @@ export function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
             {/* Zone 1: Brand — the Барилга.МН logo and what this site is */}
-            <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group" aria-label="Барилга.МН цахим номын сан — нүүр хуудас">
+            <Link to="/" onClick={goHome} className="flex items-center gap-2.5 sm:gap-3 group" aria-label="Барилга.МН цахим номын сан — нүүр хуудас">
               <img src="/images/barilga-mn-logo.svg" alt="Барилга.МН" className="h-7 sm:h-8 lg:h-9 w-auto group-hover:opacity-80 transition-opacity" />
               <span className="border-l border-stone-300 pl-2.5 sm:pl-3 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.14em] leading-tight text-stone-600">
                 Цахим<br className="sm:hidden" /> номын сан
@@ -134,7 +151,7 @@ export function Layout() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 pb-12 border-b border-stone-800">
             {/* Column 1: Brand & Colophon */}
             <div className="space-y-4 col-span-2 md:col-span-1">
-              <Link to="/" className="inline-flex items-center gap-3" aria-label="Барилга.МН цахим номын сан">
+              <Link to="/" onClick={goHome} className="inline-flex items-center gap-3" aria-label="Барилга.МН цахим номын сан">
                 <img src="/images/barilga-mn-logo-light.svg" alt="Барилга.МН" className="h-8 w-auto" />
                 <span className="border-l border-stone-700 pl-3 text-[11px] font-semibold uppercase tracking-[0.12em] whitespace-nowrap text-stone-400">Цахим номын сан</span>
               </Link>
