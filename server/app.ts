@@ -13,9 +13,17 @@ app.use(cors());
 // Supabase Auth "Send SMS" hook: Supabase generates the login code and asks us
 // to deliver it through the operator gateway. Registered before express.json()
 // because the signature is computed over the raw body.
-app.post('/api/auth/send-sms', express.text({ type: '*/*' }), async (req, res) => {
-  const rawBody = typeof req.body === 'string' ? req.body : '';
+app.post('/api/auth/send-sms', express.raw({ type: '*/*' }), async (req, res) => {
+  // The signature covers the exact bytes Supabase sent. On Vercel this only
+  // works with NODEJS_HELPERS=0; otherwise its helpers consume the stream and
+  // hand us an already-parsed object.
+  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : typeof req.body === 'string' ? req.body : '';
   if (!verifySupabaseHook(rawBody, req.headers)) {
+    console.error('Send SMS hook rejected:', {
+      secretConfigured: !!process.env.SUPABASE_SMS_HOOK_SECRET,
+      bodyType: Buffer.isBuffer(req.body) ? 'buffer' : typeof req.body,
+      hasSignature: !!req.headers['webhook-signature'],
+    });
     return res.status(401).json({ error: { http_code: 401, message: 'Invalid signature' } });
   }
   try {
