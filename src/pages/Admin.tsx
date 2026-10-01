@@ -69,7 +69,7 @@ function AdminPanel() {
           {activeTab === 'catalog_orders' && <AdminCatalogOrders />}
           {activeTab === 'orders' && <AdminOrders />}
           {activeTab === 'magazine_orders' && <AdminMagazineOrders />}
-          {activeTab === 'magazines' && <AdminMagazines />}
+          {activeTab === 'magazines' && <AdminMagazines onAdd={() => setActiveTab('add_magazine')} />}
           {activeTab === 'add_magazine' && <AdminAddMagazine />}
           {activeTab === 'manual_sub' && <AdminManualSubscription />}
           <button onClick={signOut} className="lg:hidden mt-10 inline-flex items-center gap-2 text-sm font-semibold text-stone-500">
@@ -522,7 +522,7 @@ function AdminAddMagazine() {
 // 4. MAGAZINES LIST & EDIT
 // ==========================================
 
-function AdminMagazines() {
+function AdminMagazines({ onAdd }: { onAdd: () => void }) {
   const [magazines, setMagazines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -604,7 +604,39 @@ function AdminMagazines() {
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-      <h2 className="text-2xl font-extrabold text-[#0F172A] mb-6">Сэтгүүлүүд</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <h2 className="text-2xl font-extrabold text-[#0F172A]">Сэтгүүлүүд</h2>
+          <p className="text-sm text-slate-500">Админаас гараар нэмсэн хэвлэлүүд</p>
+        </div>
+        <button
+          onClick={onAdd}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-semibold"
+        >
+          <Plus className="w-4 h-4" /> Сэтгүүл нэмэх
+        </button>
+      </div>
+
+      {/* Heyzine flipbooks show on the site automatically and aren't rows here */}
+      <div className="mb-6 bg-amber-50 border border-amber-200 p-4 text-sm text-slate-700 space-y-1">
+        <p>
+          <b>Heyzine дээрх хэвлэлүүд</b> (сэтгүүл, ном, норм дүрэм) сайт дээр <b>автоматаар</b> харагдана — энд нэмэх шаардлагагүй.
+          Шинэ дугаар гаргахдаа Heyzine-д байршуулахад хангалттай; 5 минутын дотор сайтад гарна.
+        </p>
+        <p>
+          Цахимаар худалдах дугаарын үнийг <b>«Цахим борлуулалт → Үнэ тохируулах»</b>-аас оруулна.
+          Энд зөвхөн Heyzine-д байхгүй, гараар нэмэх хэвлэлүүд харагдана.
+        </p>
+      </div>
+
+      {magazines.length === 0 && (
+        <div className="text-center py-12 border border-dashed border-slate-300 space-y-3">
+          <p className="text-slate-600">Гараар нэмсэн хэвлэл одоогоор алга.</p>
+          <button onClick={onAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-[#0F172A] underline underline-offset-4">
+            <Plus className="w-4 h-4" /> Эхний хэвлэлээ нэмэх
+          </button>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {magazines.map((mag) => (
