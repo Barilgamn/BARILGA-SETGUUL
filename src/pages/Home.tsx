@@ -72,6 +72,24 @@ const CATEGORIES = [
   { id: 'blueprint', label: 'Зураг төсөл' },
 ];
 
+// Issue number from the title ("…№191", "…сэтгүүл 177") or, for issues added
+// in the admin, the separate issue field ("195")
+function issueNo(mag: any): number | null {
+  const fromTitle = mag.title?.match(/(?:№\s?|сэтгүүл\s+)(\d{1,3})(?!\d)/i)?.[1];
+  // Only when the field is just a number ("195", "№195"), not a year inside a subtitle
+  const fromField = String(mag.issueNumber || '').match(/^\s*№?\s*(\d{1,3})\s*$/)?.[1];
+  const n = Number(fromTitle ?? fromField);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// Title with its number, for issues whose title doesn't carry one
+function displayTitle(mag: any): string {
+  const n = issueNo(mag);
+  return n && !/№\s?\d/.test(mag.title || '') && mag.category === 'magazine' ? `${mag.title} №${n}` : mag.title;
+}
+
+const flipbookKey = (link: string) => String(link || '').match(/flip-book\/([0-9a-f]{10})/i)?.[1]?.toLowerCase();
+
 // Two columns on phones make 24 covers ~4,500px of scrolling; start smaller there
 const pageSize = () => (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches ? 24 : 8);
 
@@ -145,7 +163,12 @@ export function Home() {
     let heyzineDone = false;
     const publish = () => {
       if (cancelled || !heyzineDone) return;
-      const liveMags = [...heyzineMags, ...dbMags];
+      // Admin-added issues win over the same flipbook from the Heyzine list;
+      // everything is shown newest first so additions don't sink to the end
+      const dbKeys = new Set(dbMags.map(m => flipbookKey(m.heyzineLink)).filter(Boolean));
+      const liveMags = [...dbMags, ...heyzineMags.filter(m => !dbKeys.has(flipbookKey(m.heyzineLink)))].sort(
+        (a, b) => (b.publishedDate || 0) - (a.publishedDate || 0)
+      );
       setMagazines(liveMags.length > 0 ? liveMags : MOCK_MAGAZINES);
       setLoaded(true);
     };
@@ -169,7 +192,10 @@ export function Home() {
     setVisibleCount(pageSize());
   }, [activeCategory, searchQuery]);
 
-  const issues = magazines.filter(mag => mag.category === 'magazine');
+  // The lead and «Өмнөх дугаарууд» follow issue numbers, not upload dates
+  const issues = magazines
+    .filter(mag => mag.category === 'magazine')
+    .sort((a, b) => (issueNo(b) ?? 0) - (issueNo(a) ?? 0) || (b.publishedDate || 0) - (a.publishedDate || 0));
   const leadIssue = issues[0] || magazines[0];
   const recentIssues = issues.slice(1, 7);
   const leadDescription =
@@ -177,13 +203,10 @@ export function Home() {
       ? leadIssue.description
       : 'Барилгын салбарын шинэ технологи, ногоон барилгын чиг хандлага, шинэчлэгдсэн БНбД норм ба материалын зах зээлийн үнэ ханшийн цогц судалгаа.';
   const leadYear = leadIssue?.publishedDate ? new Date(leadIssue.publishedDate).getFullYear() : new Date().getFullYear();
-  const leadNumber = leadIssue?.title?.match(/№\s?\d+/)?.[0];
+  const leadNumber = leadIssue && issueNo(leadIssue) ? `№${issueNo(leadIssue)}` : undefined;
   // The magazine has come out monthly since 2010, so its latest issue number
   // is how many issues have been published (titles read "…№191" or "…сэтгүүл 177")
-  const issuesPublished = issues.reduce((max, mag) => {
-    const n = Number(mag.title?.match(/(?:№\s?|сэтгүүл\s+)(\d{1,3})(?!\d)/i)?.[1]);
-    return Number.isFinite(n) && n > max ? n : max;
-  }, 0);
+  const issuesPublished = issues.reduce((max, mag) => Math.max(max, issueNo(mag) ?? 0), 0);
 
   const visibleCategories = CATEGORIES.filter(
     cat => cat.id === 'all' || magazines.some(mag => mag.category === cat.id)
@@ -242,7 +265,7 @@ export function Home() {
               </p>
 
               <h1 className="font-serif font-bold tracking-tight text-stone-950 leading-[1.02] text-balance mt-5 text-[2.6rem] sm:text-6xl xl:text-7xl">
-                {leadIssue.title}
+                {displayTitle(leadIssue)}
               </h1>
 
               <p className="mt-6 text-lg sm:text-xl text-stone-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
@@ -305,7 +328,7 @@ export function Home() {
                   <SaveButton issue={item} variant="overlay" className="absolute top-2 right-2" />
                 </div>
                 <p className="mt-3 font-serif text-lg font-bold text-stone-950 leading-tight">
-                  {item.title.match(/№\s?\d+/)?.[0] || item.title}
+                  {issueNo(item) ? `№${issueNo(item)}` : item.title}
                 </p>
                 <p className="text-sm text-stone-500">
                   {new Date(item.publishedDate).getFullYear()}
@@ -421,7 +444,7 @@ export function Home() {
                 <div className="pt-4 flex flex-col flex-1">
                   <h3 className="font-serif text-base sm:text-lg font-bold text-stone-950 leading-snug line-clamp-2">
                     <Link to={readHref(item)} className="hover:underline underline-offset-4 decoration-1">
-                      {item.title}
+                      {displayTitle(item)}
                     </Link>
                   </h3>
                   <p className="mt-1.5 text-sm text-stone-500">
