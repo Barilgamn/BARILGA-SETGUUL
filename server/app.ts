@@ -2,7 +2,7 @@
 // api/index.ts as the Vercel serverless function.
 import express from 'express';
 import cors from 'cors';
-import { admin, isAdminUser, loadIssuePrices, userIdFromToken, userOwnsIssue } from './supabase.js';
+import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken, userOwnsIssue } from './supabase.js';
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
 import { otpMessage, sendSms, verifySupabaseHook } from './sms.js';
 
@@ -160,20 +160,115 @@ async function loadPrices(): Promise<Map<string, number>> {
   return prices;
 }
 
+// Hand-added magazines (admin «Сэтгүүл нэмэх»). A digital price above zero
+// makes the issue paid. Same short cache as prices so admin edits show quickly.
+let magazineCache: { at: number; rows: any[] } | null = null;
+
+async function loadMagazines(): Promise<any[]> {
+  if (magazineCache && Date.now() - magazineCache.at < PRICE_CACHE_MS) return magazineCache.rows;
+  const rows = await loadMagazineRows();
+  magazineCache = { at: Date.now(), rows };
+  return rows;
+}
+
+// Heyzine flipbooks are keyed by the first 10 hex digits of their file hash:
+// it's in the flipbook link, the cover and the PDF address alike.
+function flipbookKey(...urls: string[]): string | null {
+  for (const url of urls) {
+    const m = String(url || '').match(/(?:flip-book\/(?:cover\/)?|uploaded\/v3\/)([0-9a-f]{10})/i);
+    if (m) return m[1].toLowerCase();
+  }
+  return null;
+}
+
+// Paid issues leave the server without anything that leads to the flipbook:
+// no link, no PDF, and the cover through our proxy, since Heyzine's cover
+// address contains the flipbook id.
+const coverProxy = (id: string) => `/api/cover/${encodeURIComponent(id)}`;
+
+function publicMagazine(row: any) {
+  const price = Number(row.price_digital) > 0 ? Number(row.price_digital) : 0;
+  const out = { ...row, locked: price > 0, price };
+  return price ? { ...out, heyzine_link: '', pdf_url: '', cover_image: row.cover_image ? coverProxy(row.id) : '' } : out;
+}
+
+app.get('/api/magazines', async (_req, res) => {
+  try {
+    res.json((await loadMagazines()).map(publicMagazine));
+  } catch (error: any) {
+    console.error('Listing magazines failed:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/magazines/:id', async (req, res) => {
+  try {
+    const row = (await loadMagazines()).find(r => r.id === req.params.id);
+    if (!row) return res.status(404).json({ error: 'not-found' });
+    res.json(publicMagazine(row));
+  } catch (error: any) {
+    console.error('Loading magazine failed:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/heyzine/flipbooks', async (_req, res) => {
   try {
-    const [items, prices] = await Promise.all([loadFlipbooks(), loadPrices()]);
-    // Paid issues go out without their flipbook or PDF links; /api/read hands
-    // the link only to buyers.
+    const [items, prices, rows] = await Promise.all([loadFlipbooks(), loadPrices(), loadMagazines().catch(() => [])]);
+    // A flipbook that was also added by hand is listed once, as the magazine,
+    // so its price can't be dodged through the Heyzine copy
+    const handAdded = new Set(rows.map(r => flipbookKey(r.heyzine_link, r.cover_image)).filter(Boolean));
     return res.json(
-      items.map(item => {
-        const price = prices.get(item.id);
-        return price ? { ...item, price, locked: true, heyzineLink: '', pdfUrl: '' } : item;
-      })
+      items
+        .filter(item => !handAdded.has(flipbookKey(item.heyzineLink, item.coverImage)))
+        .map(item => {
+          const price = prices.get(item.id);
+          return price
+            ? { ...item, price, locked: true, heyzineLink: '', pdfUrl: '', coverImage: item.coverImage ? coverProxy(item.id) : '' }
+            : item;
+        })
     );
   } catch (error: any) {
     console.error('Server error listing Heyzine flipbooks:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// What an issue id stands for: the id purchases are recorded against, its
+// price (0 = free) and the real flipbook link and cover.
+async function resolveIssue(id: string): Promise<{ issueId: string; price: number; link: string; cover: string } | null> {
+  const rows = await loadMagazines();
+  const fromRow = (row: any) => ({
+    issueId: row.id,
+    price: Number(row.price_digital) > 0 ? Number(row.price_digital) : 0,
+    link: row.heyzine_link || '',
+    cover: row.cover_image || '',
+  });
+  if (!id.startsWith('hz-')) {
+    const row = rows.find(r => r.id === id);
+    return row ? fromRow(row) : null;
+  }
+  const [items, prices] = await Promise.all([loadFlipbooks(), loadPrices()]);
+  const item = items.find(i => i.id === id);
+  if (!item) return null;
+  const key = flipbookKey(item.heyzineLink, item.coverImage);
+  const row = key && rows.find(r => flipbookKey(r.heyzine_link, r.cover_image) === key);
+  if (row) return fromRow(row);
+  return { issueId: item.id, price: prices.get(item.id) || 0, link: item.heyzineLink, cover: item.coverImage };
+}
+
+app.get('/api/cover/:id', async (req, res) => {
+  try {
+    const issue = await resolveIssue(req.params.id);
+    if (!issue?.cover || !/^https:\/\//i.test(issue.cover)) return res.status(404).end();
+    const upstream = await fetch(issue.cover);
+    if (!upstream.ok) return res.status(502).end();
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400, s-maxage=604800');
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (error: any) {
+    console.error('Cover proxy failed:', error.message);
+    res.status(502).end();
   }
 });
 
@@ -212,17 +307,15 @@ app.get('/api/heyzine/lookup', async (req, res) => {
 
 app.get('/api/read/:id', async (req, res) => {
   try {
-    const [items, prices] = await Promise.all([loadFlipbooks(), loadPrices()]);
-    const item = items.find(i => i.id === req.params.id);
-    if (!item) return res.status(404).json({ error: 'not-found' });
-
-    const price = prices.get(item.id);
-    if (!price) return res.json({ heyzineLink: item.heyzineLink });
+    const issue = await resolveIssue(req.params.id);
+    if (!issue) return res.status(404).json({ error: 'not-found' });
+    if (!issue.price) return res.json({ heyzineLink: issue.link });
 
     const uid = await userIdFromToken(bearer(req));
-    if (!uid) return res.status(401).json({ error: 'login-required', price });
-    if (!(await userOwnsIssue(uid, item.id))) return res.status(402).json({ error: 'payment-required', price });
-    return res.json({ heyzineLink: item.heyzineLink });
+    if (!uid) return res.status(401).json({ error: 'login-required', price: issue.price });
+    const allowed = (await userOwnsIssue(uid, issue.issueId)) || (await isAdminUser(uid));
+    if (!allowed) return res.status(402).json({ error: 'payment-required', price: issue.price });
+    return res.json({ heyzineLink: issue.link });
   } catch (error: any) {
     console.error('Read access check failed:', error);
     return res.status(500).json({ error: 'Internal server error' });

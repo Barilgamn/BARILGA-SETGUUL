@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BookOpen, CheckCircle2, CreditCard, FileText, Loader2, QrCode, RefreshCw } from 'lucide-react';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { findHeyzineMagazine } from '../lib/heyzine';
+import { getMagazine } from '../lib/records';
 import {
   checkQPay,
   createPurchase,
@@ -30,7 +31,14 @@ export function Buy() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    findHeyzineMagazine(id).then(found => setIssue(found || null));
+    // Heyzine issues, or a magazine added by hand in the admin panel
+    findHeyzineMagazine(id)
+      .then(found => found || getMagazine(id))
+      .then(found => setIssue(found || null))
+      .catch(err => {
+        console.error('Could not load issue:', err);
+        setIssue(null);
+      });
   }, [id]);
 
   // Free issues have nothing to buy

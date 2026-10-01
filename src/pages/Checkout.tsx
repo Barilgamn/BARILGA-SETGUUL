@@ -40,6 +40,11 @@ export function Checkout() {
     }
   }, [id, magazine]);
 
+  // Paid digital copies are bought on /buy, which unlocks reading once paid
+  useEffect(() => {
+    if (magazine?.locked && format !== 'print') navigate(`/buy/${magazine.id}`, { replace: true });
+  }, [magazine, format, navigate]);
+
   const [address, setAddress] = useState({
     city: 'Улаанбаатар',
     district: '',

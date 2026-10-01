@@ -22,6 +22,9 @@ export function magazineFromRow(r: any): Magazine & { createdAt: number } {
     publishedDate: Number(r.published_date ?? r.created_at),
     format: 'both',
     createdAt: Number(r.created_at),
+    // Set by the server for issues with a digital price
+    locked: !!r.locked,
+    price: r.price || undefined,
   };
 }
 
@@ -44,19 +47,29 @@ function magazineToRow(m: Partial<MagazineInput>) {
   return row;
 }
 
+// Public pages read magazines through the server, which leaves the flipbook
+// link and PDF out of paid issues (the table itself is admin-only)
 export async function listMagazines() {
-  const { data, error } = await supabase.from('magazines').select('*').order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(magazineFromRow);
+  const res = await fetch('/api/magazines');
+  if (!res.ok) throw new Error(`magazines: ${res.status}`);
+  return ((await res.json()) as any[]).map(magazineFromRow);
 }
 
 // Detail/reader/checkout pages also see Heyzine ("hz-…") and seed ids; only
-// uuids can be rows here, so skip the query for anything else.
+// uuids can be rows here, so skip the request for anything else.
 export async function getMagazine(id: string) {
   if (!isUuid(id)) return null;
-  const { data, error } = await supabase.from('magazines').select('*').eq('id', id).maybeSingle();
+  const res = await fetch(`/api/magazines/${encodeURIComponent(id)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`magazine: ${res.status}`);
+  return magazineFromRow(await res.json());
+}
+
+// Admin panel: the full rows, links included
+export async function listAllMagazines() {
+  const { data, error } = await supabase.from('magazines').select('*').order('created_at', { ascending: false });
   if (error) throw error;
-  return data ? magazineFromRow(data) : null;
+  return (data || []).map(magazineFromRow);
 }
 
 export async function addMagazine(m: MagazineInput) {

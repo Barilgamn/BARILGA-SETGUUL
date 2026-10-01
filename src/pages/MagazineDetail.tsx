@@ -153,7 +153,7 @@ export function MagazineDetail() {
               </div>
             </div>
             
-            {magazine.source === 'heyzine' ? (
+            {magazine.source === 'heyzine' || magazine.locked ? (
               <div className="space-y-4 pt-6 border-t border-stone-200">
                 {magazine.locked ? (
                   <>
@@ -168,6 +168,14 @@ export function MagazineDetail() {
                     >
                       Худалдаж авах
                     </Link>
+                    {magazine.source !== 'heyzine' && magazine.pricePrint > 0 && (
+                      <Link
+                        to={`/checkout/${magazine.id}?format=print`}
+                        className="block text-sm font-semibold text-stone-700 underline underline-offset-4 hover:text-stone-950"
+                      >
+                        Хэвлэмэл хувилбар захиалах · {magazine.pricePrint.toLocaleString()}₮
+                      </Link>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-stone-600">Энэ хэвлэлийг цахимаар үнэгүй уншина.</p>

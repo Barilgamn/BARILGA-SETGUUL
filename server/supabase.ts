@@ -46,3 +46,12 @@ export async function userOwnsIssue(userId: string, issueId: string): Promise<bo
   if (error) throw new Error(`purchases: ${error.message}`);
   return (data || []).length > 0;
 }
+
+// Hand-added magazines, read with the service role: since 0004 the public
+// can't select this table, because rows hold the flipbook links of paid issues.
+export async function loadMagazineRows(): Promise<any[]> {
+  if (!admin) return [];
+  const { data, error } = await admin.from('magazines').select('*').order('created_at', { ascending: false });
+  if (error) throw new Error(`magazines: ${error.message}`);
+  return data || [];
+}

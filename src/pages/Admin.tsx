@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { addMagazine, createManualSubscription, deleteMagazine, listAllSubscriptions, listMagazines, updateMagazine, updateSubscription } from '../lib/records';
+import { addMagazine, createManualSubscription, deleteMagazine, listAllMagazines, listAllSubscriptions, updateMagazine, updateSubscription } from '../lib/records';
 import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
 import { lookupHeyzineLink } from '../lib/heyzine';
@@ -627,7 +627,7 @@ function AdminMagazines({ onAdd }: { onAdd: () => void }) {
   const fetchMagazines = async () => {
     setLoading(true);
     try {
-      setMagazines(await listMagazines());
+      setMagazines(await listAllMagazines());
     } catch (err) {
       console.error(err);
     } finally {
