@@ -21,13 +21,6 @@ export function Layout() {
     { label: 'Холбоо барих', path: '/#contact' },
   ];
 
-  // The catalog is a one-off publication, so on its page the header buys it
-  // rather than pointing at the magazine subscription
-  const headerCta =
-    location.pathname === '/amini-oron-suuts'
-      ? { to: '/amini-oron-suuts#order', label: 'Каталог худалдаж авах', shortLabel: 'Худалдаж авах' }
-      : { to: '/subscribe', label: 'Сэтгүүл захиалах', shortLabel: 'Захиалах' };
-
   const isLinkActive = (path: string) => {
     const [pathname, hash] = path.split('#');
     return location.pathname === pathname && (!hash || location.hash === `#${hash}`);
@@ -69,7 +62,7 @@ export function Layout() {
               })}
             </nav>
 
-            {/* Zone 3: 1-2 Primary actions */}
+            {/* Zone 3: account */}
             <div className="hidden xl:flex items-center gap-3">
               {user ? (
                 <Link
@@ -88,23 +81,10 @@ export function Layout() {
                   <span>Нэвтрэх</span>
                 </Link>
               )}
-
-              <Link
-                to={headerCta.to}
-                className="inline-flex items-center px-5 py-2.5 bg-stone-950 text-white text-sm font-semibold hover:bg-stone-800 transition-colors whitespace-nowrap"
-              >
-                {headerCta.label}
-              </Link>
             </div>
 
             {/* Mobile Menu Toggle */}
             <div className="flex items-center xl:hidden gap-2">
-              <Link
-                to={headerCta.to}
-                className="px-4 py-2 bg-stone-950 text-white text-sm font-semibold whitespace-nowrap"
-              >
-                {headerCta.shortLabel}
-              </Link>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2.5 -mr-2 rounded-lg text-stone-700 hover:text-stone-900 hover:bg-stone-100"
