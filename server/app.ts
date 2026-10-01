@@ -2,9 +2,9 @@
 // api/index.ts as the Vercel serverless function.
 import express from 'express';
 import cors from 'cors';
-import { admin, isAdminUser, loadIssuePrices, userIdFromToken, userOwnsIssue } from './supabase';
-import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay';
-import { otpMessage, sendSms, verifySupabaseHook } from './sms';
+import { admin, isAdminUser, loadIssuePrices, userIdFromToken, userOwnsIssue } from './supabase.js';
+import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
+import { otpMessage, sendSms, verifySupabaseHook } from './sms.js';
 
 const app = express();
 

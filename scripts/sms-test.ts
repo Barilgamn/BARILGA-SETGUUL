@@ -1,7 +1,7 @@
 // Send one test SMS through the configured operator gateway:
 //   npm run sms:test -- 99112233
 import 'dotenv/config';
-import { otpMessage, sendSms, smsConfigured } from '../server/sms';
+import { otpMessage, sendSms, smsConfigured } from '../server/sms.js';
 
 const to = process.argv[2];
 if (!to) {
