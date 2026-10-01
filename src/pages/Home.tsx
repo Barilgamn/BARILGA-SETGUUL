@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { fetchHeyzineMagazines } from '../lib/heyzine';
-import { useHouseCatalog } from './HouseCatalog';
+import { CATALOG_COVER } from './HouseCatalog';
 import { listMagazines } from '../lib/records';
 import { ArrowRight, ArrowUpRight, Search, Check, Lock } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
@@ -111,7 +111,6 @@ function Cover({ src, alt, className = '', eager = false }: { src: string; alt: 
 export function Home() {
   const [magazines, setMagazines] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const { catalog: houseCatalog } = useHouseCatalog();
   const plansRef = useRef<HTMLDivElement>(null);
 
   // Menu links like /#magazines arrive before the catalog has rendered; jump
@@ -316,16 +315,15 @@ export function Home() {
       {/* ─────────────── House catalog feature */}
       <section className="-mx-4 sm:-mx-6 lg:-mx-8 bg-[#EDE8DF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
-          {houseCatalog && (
-            <Link to="/amini-oron-suuts" className="group md:col-span-5 flex justify-center">
-              <Cover
-                src={houseCatalog.coverImage}
-                alt={houseCatalog.title}
-                className="w-52 sm:w-64 shadow-[0_30px_60px_-25px_rgba(28,25,23,0.6)] transition-transform duration-500 group-hover:-translate-y-1"
-              />
-            </Link>
-          )}
-          <div className={`${houseCatalog ? 'md:col-span-7' : 'md:col-span-12'} text-center md:text-left`}>
+          <Link to="/amini-oron-suuts" className="group md:col-span-5 flex justify-center">
+            <img
+              src={CATALOG_COVER}
+              alt="«Амины орон сууц» каталог — 8 дахь цуврал"
+              loading="lazy"
+              className="w-52 sm:w-64 aspect-[961/1368] object-cover shadow-[0_30px_60px_-25px_rgba(28,25,23,0.6)] transition-transform duration-500 group-hover:-translate-y-1"
+            />
+          </Link>
+          <div className="md:col-span-7 text-center md:text-left">
             <p className="text-sm font-semibold text-amber-800">Шинэ · 8 дахь цуврал · нэг удаагийн хэвлэл</p>
             <h2 className="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-stone-950 leading-[1.05] mt-2 text-balance">
               «Амины орон сууц» каталог
@@ -338,11 +336,6 @@ export function Home() {
               <Link to="/amini-oron-suuts" className={btnInk}>
                 Дэлгэрэнгүй, худалдаж авах <ArrowRight className="w-4 h-4" />
               </Link>
-              {houseCatalog && (
-                <Link to={`/read/${houseCatalog.id}`} className={btnLine}>
-                  Цахимаар унших
-                </Link>
-              )}
             </div>
           </div>
         </div>

@@ -1,14 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus } from 'lucide-react';
-import { fetchHeyzineMagazines } from '../lib/heyzine';
-import { CatalogOrder, Magazine } from '../types';
+import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus } from 'lucide-react';
+import { CatalogOrder } from '../types';
 import { createCatalogOrder, DISTRICTS, formatCode, getCatalogPrice, orderTotal } from '../lib/catalogOrders';
 import { Invoice, transferReference } from '../components/Invoice';
 
-// The newest flipbook whose title names the house catalog; a new edition
-// uploaded to Heyzine takes over without a code change.
-const CATALOG_TITLE = /амины\s+(орон\s+)?сууц.*каталог/i;
+// The 8th edition is print-only (not on Heyzine), so its cover ships with the site
+export const CATALOG_COVER = '/images/amini-oron-suuts-8.jpg';
+const CATALOG_PRODUCT_ID = 'amini-oron-suuts-8';
 
 export const ORDER_PHONE = '9100-0233';
 const ORDER_PHONE_TEL = 'tel:+97691000233';
@@ -29,43 +28,18 @@ const SALE_POINTS = [
   { name: 'Аз хур', where: 'Бүх салбар' },
 ];
 
-export function useHouseCatalog() {
-  const [catalog, setCatalog] = useState<Magazine | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    fetchHeyzineMagazines().then(items => {
-      setCatalog(items.find(item => CATALOG_TITLE.test(item.title)) || null);
-      setLoaded(true);
-    });
-  }, []);
-
-  return { catalog, loaded };
-}
-
 export function HouseCatalog() {
-  const { catalog, loaded } = useHouseCatalog();
-
   return (
     <div className="max-w-5xl mx-auto space-y-10 sm:space-y-16">
       {/* Intro */}
       <section className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center">
         <div className="md:col-span-5 flex justify-center order-first md:order-last">
-          {!loaded ? (
-            <div className="w-48 sm:w-72 aspect-[3/4] rounded-xl bg-stone-200 animate-pulse"></div>
-          ) : catalog ? (
-            <Link to={`/read/${catalog.id}`} className="group block w-48 sm:w-72">
-              <div className="relative aspect-[3/4] rounded-xl overflow-hidden shadow-2xl ring-1 ring-stone-200 transition-transform duration-500 group-hover:-translate-y-1">
-                <img
-                  src={catalog.coverImage}
-                  alt={catalog.title}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/30 to-transparent pointer-events-none"></div>
-              </div>
-            </Link>
-          ) : null}
+          <a href="#order" className="group block w-48 sm:w-72">
+            <div className="relative aspect-[961/1368] overflow-hidden shadow-2xl ring-1 ring-stone-200 transition-transform duration-500 group-hover:-translate-y-1">
+              <img src={CATALOG_COVER} alt="«Амины орон сууц» каталог — 8 дахь цуврал" className="w-full h-full object-cover" />
+              <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/30 to-transparent pointer-events-none"></div>
+            </div>
+          </a>
         </div>
 
         <div className="md:col-span-7 space-y-5 text-center md:text-left">
@@ -95,15 +69,6 @@ export function HouseCatalog() {
               <span>Худалдаж авах</span>
               <ArrowRight className="w-4 h-4" />
             </a>
-            {catalog && (
-              <Link
-                to={`/read/${catalog.id}`}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-900 font-semibold text-sm transition-colors"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>Цахимаар унших</span>
-              </Link>
-            )}
           </div>
 
           <p className="text-sm text-stone-500">
@@ -130,7 +95,7 @@ export function HouseCatalog() {
         </ul>
       </section>
 
-      <OrderForm catalog={catalog} />
+      <OrderForm />
 
       {/* Where to buy */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -167,7 +132,7 @@ export function HouseCatalog() {
   );
 }
 
-function OrderForm({ catalog }: { catalog: Magazine | null }) {
+function OrderForm() {
   const [price, setPrice] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({
@@ -204,7 +169,7 @@ function OrderForm({ catalog }: { catalog: Magazine | null }) {
     setSubmitting(true);
     try {
       const order = await createCatalogOrder({
-        productId: catalog?.id || 'house-catalog',
+        productId: CATALOG_PRODUCT_ID,
         productTitle: '«Амины орон сууц» каталог',
         quantity,
         fullName: form.fullName.trim(),
