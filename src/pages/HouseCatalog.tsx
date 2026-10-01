@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus } from 'lucide-react';
 import { CatalogOrder } from '../types';
-import { createCatalogOrder, DISTRICTS, formatCode, getCatalogPrice, orderTotal } from '../lib/catalogOrders';
+import { CatalogPricing, createCatalogOrder, DISTRICTS, formatCode, getCatalogPricing, orderTotal } from '../lib/catalogOrders';
 import { Invoice, transferReference } from '../components/Invoice';
 
 // The 8th edition is print-only (not on Heyzine), so its cover ships with the site
@@ -13,7 +13,7 @@ export const ORDER_PHONE = '9100-0233';
 const ORDER_PHONE_TEL = 'tel:+97691000233';
 
 const CONTENTS = [
-  'Эрчим хүчний «A, B» ангиллын гэрчилгээтэй, Монгол орны цаг уурт зохицсон 40м²–500м² хүртэлх ногоон загварууд',
+  'Эрчим хүчний «A, B» ангиллын гэрчилгээтэй, Монгол орны цаг уурт зохицсон 45–540м² хүртэлх ногоон загварууд',
   'Ногоон зээл болон ипотекийн зээлд хэрхэн хамрагдах дэлгэрэнгүй заавар',
   '80м² амины орон сууцны загвар дээр бодож харуулсан төсвийн нарийвчилсан аргачлал',
   'Эрчим хүчний хэмнэлттэй халаалт, сэргээгдэх эрчим хүчний шийдлүүд',
@@ -133,7 +133,8 @@ export function HouseCatalog() {
 }
 
 function OrderForm() {
-  const [price, setPrice] = useState<number | null>(null);
+  const [pricing, setPricing] = useState<CatalogPricing>({ price: null, deliveryFee: 0 });
+  const price = pricing.price;
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({
     fullName: '',
@@ -148,7 +149,7 @@ function OrderForm() {
   const [placed, setPlaced] = useState<CatalogOrder | null>(null);
 
   useEffect(() => {
-    getCatalogPrice().then(setPrice).catch(() => setPrice(null));
+    getCatalogPricing().then(setPricing).catch(() => undefined);
   }, []);
 
   const set = (field: keyof typeof form) => (e: { target: { value: string } }) =>
@@ -156,6 +157,7 @@ function OrderForm() {
 
   const phoneDigits = form.phone.replace(/\D/g, '');
   const needsAddress = form.deliveryMethod === 'delivery';
+  const deliveryFee = needsAddress ? pricing.deliveryFee : 0;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -227,7 +229,10 @@ function OrderForm() {
               number={formatCode(placed.code)}
               date={placed.createdAt}
               buyer={{ name: placed.fullName, phone: placed.phone }}
-              items={[{ label: '«Амины орон сууц» каталог', quantity: placed.quantity, amount: total }]}
+              items={[
+                { label: '«Амины орон сууц» каталог', quantity: placed.quantity, amount: total - placed.deliveryFee },
+                ...(placed.deliveryFee ? [{ label: 'Хүргэлт', amount: placed.deliveryFee }] : []),
+              ]}
               reference={`${transferReference(placed.fullName, placed.phone)} ${placed.code}`}
               note="Төлбөр орсны дараа каталогийг хүргэж эсвэл редакцаас олгоно."
             />
@@ -278,7 +283,7 @@ function OrderForm() {
           <span className="text-sm font-semibold text-stone-800 block">Хүлээн авах</span>
           <div className="grid grid-cols-2 gap-2">
             {([
-              ['delivery', 'Хүргүүлэх'],
+              ['delivery', pricing.deliveryFee ? `Хүргүүлэх (+${pricing.deliveryFee.toLocaleString()}₮)` : 'Хүргүүлэх'],
               ['pickup', 'Очиж авах'],
             ] as const).map(([value, label]) => (
               <button
@@ -325,7 +330,10 @@ function OrderForm() {
         <div className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-stone-100">
           <p className="text-sm text-stone-500">
             {price != null ? (
-              <>Нийт <span className="text-lg font-bold text-stone-900 tabular-nums">{(price * quantity).toLocaleString()}₮</span> · Төлбөрийг баталгаажуулах үед мэдэгдэнэ</>
+              <>
+                Нийт <span className="text-lg font-bold text-stone-900 tabular-nums">{(price * quantity + deliveryFee).toLocaleString()}₮</span>
+                {deliveryFee > 0 && <> ({(price * quantity).toLocaleString()}₮ + хүргэлт {deliveryFee.toLocaleString()}₮)</>}
+              </>
             ) : (
               <>Үнэ, хүргэлтийн төлбөрийг баталгаажуулах үед мэдэгдэнэ</>
             )}

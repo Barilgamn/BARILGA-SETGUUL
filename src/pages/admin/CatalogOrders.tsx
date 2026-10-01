@@ -3,10 +3,10 @@ import { ChevronDown, Download, Loader2, Phone, Search } from 'lucide-react';
 import { CatalogOrder, CatalogOrderStatus } from '../../types';
 import {
   formatCode,
-  getCatalogPrice,
+  getCatalogPricing,
   orderTotal,
   PAYMENT_LABELS,
-  setCatalogPrice,
+  setCatalogPricing,
   STATUS_LABELS,
   STATUS_STYLES,
   updateCatalogOrder,
@@ -57,7 +57,7 @@ export function AdminCatalogOrders() {
   }, [orders, filter, search]);
 
   const exportCsv = () => {
-    const header = ['Код', 'Огноо', 'Нэр', 'Утас', 'Тоо', 'Нэгж үнэ', 'Нийт', 'Хүлээн авах', 'Дүүрэг', 'Хаяг', 'Тайлбар', 'Төлөв', 'Төлбөр', 'Админ тэмдэглэл'];
+    const header = ['Код', 'Огноо', 'Нэр', 'Утас', 'Тоо', 'Нэгж үнэ', 'Хүргэлт', 'Нийт', 'Хүлээн авах', 'Дүүрэг', 'Хаяг', 'Тайлбар', 'Төлөв', 'Төлбөр', 'Админ тэмдэглэл'];
     const rows = visible.map(o => [
       formatCode(o.code),
       new Date(o.createdAt).toLocaleString('mn-MN'),
@@ -65,6 +65,7 @@ export function AdminCatalogOrders() {
       o.phone,
       o.quantity,
       o.unitPrice ?? '',
+      o.deliveryFee,
       orderTotal(o) ?? '',
       o.deliveryMethod === 'pickup' ? 'Очиж авна' : 'Хүргэлт',
       o.district,
@@ -201,7 +202,7 @@ function OrderRow({ order, open, onToggle }: { order: CatalogOrder; open: boolea
           <p className="text-sm text-stone-500">
             {order.quantity} ш{total != null && <span className="tabular-nums"> · {total.toLocaleString()}₮</span>}
             {' · '}
-            {order.deliveryMethod === 'pickup' ? 'Очиж авна' : order.district}
+            {order.deliveryMethod === 'pickup' ? 'Очиж авна' : `${order.district}${order.deliveryFee ? ` · хүргэлт ${order.deliveryFee.toLocaleString()}₮` : ''}`}
             {' · '}
             {new Date(order.createdAt).toLocaleDateString('mn-MN')}
           </p>
@@ -298,25 +299,27 @@ function OrderRow({ order, open, onToggle }: { order: CatalogOrder; open: boolea
 }
 
 function PriceSetting() {
-  const [value, setValue] = useState('');
-  const [saved, setSaved] = useState<number | null | undefined>(undefined);
+  const [price, setPrice] = useState('');
+  const [fee, setFee] = useState('');
+  const [saved, setSaved] = useState<{ price: string; fee: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    getCatalogPrice().then(p => {
-      setSaved(p);
-      setValue(p == null ? '' : String(p));
+    getCatalogPricing().then(p => {
+      const initial = { price: p.price == null ? '' : String(p.price), fee: String(p.deliveryFee || '') };
+      setSaved(initial);
+      setPrice(initial.price);
+      setFee(initial.fee);
     });
   }, []);
 
-  const parsed = value.trim() === '' ? null : Number(value.replace(/\D/g, ''));
-  const dirty = saved !== undefined && parsed !== saved;
+  const dirty = saved !== null && (price !== saved.price || fee !== saved.fee);
 
   const handleSave = async () => {
     setBusy(true);
     try {
-      await setCatalogPrice(parsed);
-      setSaved(parsed);
+      await setCatalogPricing({ price: price === '' ? null : Number(price), deliveryFee: Number(fee || 0) });
+      setSaved({ price, fee });
     } catch (err) {
       console.error('Failed to save price:', err);
       alert('Үнэ хадгалж чадсангүй.');
@@ -325,20 +328,27 @@ function PriceSetting() {
     }
   };
 
-  return (
-    <div className="flex items-center gap-2">
-      <label htmlFor="catalog-price" className="text-sm text-stone-600 whitespace-nowrap">Каталогийн үнэ</label>
-      <div className="relative">
+  const field = (id: string, label: string, value: string, set: (v: string) => void, placeholder: string) => (
+    <label htmlFor={id} className="flex items-center gap-2">
+      <span className="text-sm text-stone-600 whitespace-nowrap">{label}</span>
+      <span className="relative">
         <input
-          id="catalog-price"
+          id={id}
           inputMode="numeric"
           value={value}
-          onChange={e => setValue(e.target.value.replace(/\D/g, ''))}
-          placeholder="Тохируулаагүй"
-          className="w-32 pl-3 pr-7 py-2 rounded-lg border border-stone-300 text-base sm:text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-stone-900"
+          onChange={e => set(e.target.value.replace(/\D/g, ''))}
+          placeholder={placeholder}
+          className="w-28 pl-3 pr-7 py-2 rounded-lg border border-stone-300 text-base sm:text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-stone-900"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">₮</span>
-      </div>
+      </span>
+    </label>
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {field('catalog-price', 'Каталогийн үнэ', price, setPrice, 'Тохируулаагүй')}
+      {field('catalog-delivery-fee', 'Хүргэлт', fee, setFee, '0')}
       {dirty && (
         <button onClick={handleSave} disabled={busy} className="px-3 py-2 rounded-lg bg-stone-900 text-white text-sm font-semibold disabled:opacity-50">
           Хадгалах

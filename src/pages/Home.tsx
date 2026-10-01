@@ -329,7 +329,7 @@ export function Home() {
               «Амины орон сууц» каталог
             </h2>
             <p className="mt-5 text-lg text-stone-700 leading-relaxed max-w-xl mx-auto md:mx-0">
-              40м²–500м² хүртэлх ногоон загварууд, ногоон болон ипотекийн зээлд хамрагдах заавар, төсвийн аргачлал —
+              45–540м² хүртэлх ногоон загварууд, ногоон болон ипотекийн зээлд хамрагдах заавар, төсвийн аргачлал —
               мөрөөдлийн байшингаа барих бүх мэдээлэл нэг дор.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">

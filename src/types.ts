@@ -88,6 +88,8 @@ export interface CatalogOrder {
   productTitle: string;
   quantity: number;
   unitPrice: number | null;
+  // 0 for pickup; set by the database from settings.house_catalog.deliveryFee
+  deliveryFee: number;
   fullName: string;
   phone: string;
   deliveryMethod: 'delivery' | 'pickup';

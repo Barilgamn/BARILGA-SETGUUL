@@ -46,8 +46,8 @@ export function normalizeCode(input: string): string {
   return input.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
-export function orderTotal(order: Pick<CatalogOrder, 'unitPrice' | 'quantity'>): number | null {
-  return order.unitPrice == null ? null : order.unitPrice * order.quantity;
+export function orderTotal(order: Pick<CatalogOrder, 'unitPrice' | 'quantity' | 'deliveryFee'>): number | null {
+  return order.unitPrice == null ? null : order.unitPrice * order.quantity + (order.deliveryFee || 0);
 }
 
 function fromRow(r: any): CatalogOrder {
@@ -57,6 +57,7 @@ function fromRow(r: any): CatalogOrder {
     productTitle: r.product_title ?? '',
     quantity: r.quantity,
     unitPrice: r.unit_price ?? null,
+    deliveryFee: r.delivery_fee ?? 0,
     fullName: r.full_name ?? '',
     phone: r.phone ?? '',
     deliveryMethod: r.delivery_method,
@@ -71,13 +72,21 @@ function fromRow(r: any): CatalogOrder {
   };
 }
 
-export async function getCatalogPrice(): Promise<number | null> {
-  const value = await getSetting<{ price?: number | null }>('house_catalog');
-  return typeof value?.price === 'number' ? value.price : null;
+export interface CatalogPricing {
+  price: number | null;
+  deliveryFee: number;
 }
 
-export async function setCatalogPrice(price: number | null): Promise<void> {
-  await setSetting('house_catalog', { price });
+export async function getCatalogPricing(): Promise<CatalogPricing> {
+  const value = await getSetting<{ price?: number | null; deliveryFee?: number }>('house_catalog');
+  return {
+    price: typeof value?.price === 'number' ? value.price : null,
+    deliveryFee: typeof value?.deliveryFee === 'number' ? value.deliveryFee : 0,
+  };
+}
+
+export async function setCatalogPricing(pricing: CatalogPricing): Promise<void> {
+  await setSetting('house_catalog', pricing);
 }
 
 export type NewCatalogOrder = Pick<
