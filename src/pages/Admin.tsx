@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { addMagazine, createManualSubscription, deleteMagazine, listAllSubscriptions, listMagazines, updateMagazine, updateSubscription } from '../lib/records';
-import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard } from 'lucide-react';
+import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminCatalogOrders } from './admin/CatalogOrders';
 import { AdminDigitalSales } from './admin/DigitalSales';
@@ -23,22 +24,70 @@ const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = 
 
 export function Admin() {
   return (
-    <AdminGate>
-      <AdminPanel />
-    </AdminGate>
+    <AdminShell>
+      <AdminGate>
+        <AdminPanel />
+      </AdminGate>
+    </AdminShell>
   );
 }
 
-function AdminPanel() {
+// The admin's own frame: no public announcement bar, menu or footer
+function AdminShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('digital_sales');
+  return (
+    <div className="min-h-screen bg-stone-100 text-stone-900 flex flex-col">
+      <header className="bg-stone-950 text-white sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="font-serif text-xl font-bold tracking-tight">
+              BARILGA<span className="text-amber-500">.</span>MN
+            </span>
+            <span className="text-xs font-semibold text-stone-950 bg-amber-400 px-2 py-0.5">Удирдлага</span>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <a href="/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-stone-300 hover:text-white">
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden sm:inline">Сайт руу</span>
+            </a>
+            {user?.email && (
+              <>
+                <span className="hidden md:inline text-stone-400 truncate max-w-[200px]">{user.email}</span>
+                <button onClick={signOut} className="inline-flex items-center gap-1.5 text-stone-300 hover:text-white">
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">Гарах</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
+    </div>
+  );
+}
+
+const isAdminTab = (value: string): value is AdminTab => ADMIN_TABS.some(t => t.id === value);
+
+function AdminPanel() {
+  // The open tab lives in the URL hash so a refresh or shared link keeps it
+  const [activeTab, setActiveTabState] = useState<AdminTab>(() => {
+    const fromHash = window.location.hash.slice(1);
+    return isAdminTab(fromHash) ? fromHash : 'digital_sales';
+  });
+  const setActiveTab = (tab: AdminTab) => {
+    setActiveTabState(tab);
+    window.history.replaceState(null, '', `#${tab}`);
+  };
 
   return (
-    <div className="max-w-6xl mx-auto sm:mt-6">
+    <div>
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
         {/* Tabs: a scrolling strip on phones, a sidebar on desktop */}
         <div className="w-full lg:w-64 shrink-0">
-          <div className="lg:bg-white lg:rounded-2xl lg:border lg:border-stone-200/90 lg:p-4 lg:sticky lg:top-24 lg:shadow-sm">
+          <div className="lg:bg-white lg:rounded-2xl lg:border lg:border-stone-200/90 lg:p-4 lg:sticky lg:top-20 lg:shadow-sm">
             <nav className="flex lg:flex-col gap-2 lg:gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0">
               {ADMIN_TABS.map(({ id, label, icon: Icon }) => (
                 <button
@@ -54,12 +103,6 @@ function AdminPanel() {
                 </button>
               ))}
             </nav>
-            <div className="hidden lg:block mt-4 pt-4 border-t border-stone-100 px-2 space-y-2">
-              <p className="text-xs text-stone-500 truncate">{user?.email}</p>
-              <button onClick={signOut} className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-stone-900">
-                <LogOut className="w-4 h-4" /> Гарах
-              </button>
-            </div>
           </div>
         </div>
 
@@ -69,12 +112,9 @@ function AdminPanel() {
           {activeTab === 'catalog_orders' && <AdminCatalogOrders />}
           {activeTab === 'orders' && <AdminOrders />}
           {activeTab === 'magazine_orders' && <AdminMagazineOrders />}
-          {activeTab === 'magazines' && <AdminMagazines />}
+          {activeTab === 'magazines' && <AdminMagazines onAdd={() => setActiveTab('add_magazine')} />}
           {activeTab === 'add_magazine' && <AdminAddMagazine />}
           {activeTab === 'manual_sub' && <AdminManualSubscription />}
-          <button onClick={signOut} className="lg:hidden mt-10 inline-flex items-center gap-2 text-sm font-semibold text-stone-500">
-            <LogOut className="w-4 h-4" /> Гарах ({user?.email})
-          </button>
         </div>
       </div>
     </div>
@@ -522,7 +562,7 @@ function AdminAddMagazine() {
 // 4. MAGAZINES LIST & EDIT
 // ==========================================
 
-function AdminMagazines() {
+function AdminMagazines({ onAdd }: { onAdd: () => void }) {
   const [magazines, setMagazines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -604,7 +644,39 @@ function AdminMagazines() {
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-      <h2 className="text-2xl font-extrabold text-[#0F172A] mb-6">Сэтгүүлүүд</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <h2 className="text-2xl font-extrabold text-[#0F172A]">Сэтгүүлүүд</h2>
+          <p className="text-sm text-slate-500">Админаас гараар нэмсэн хэвлэлүүд</p>
+        </div>
+        <button
+          onClick={onAdd}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-semibold"
+        >
+          <Plus className="w-4 h-4" /> Сэтгүүл нэмэх
+        </button>
+      </div>
+
+      {/* Heyzine flipbooks show on the site automatically and aren't rows here */}
+      <div className="mb-6 bg-amber-50 border border-amber-200 p-4 text-sm text-slate-700 space-y-1">
+        <p>
+          <b>Heyzine дээрх хэвлэлүүд</b> (сэтгүүл, ном, норм дүрэм) сайт дээр <b>автоматаар</b> харагдана — энд нэмэх шаардлагагүй.
+          Шинэ дугаар гаргахдаа Heyzine-д байршуулахад хангалттай; 5 минутын дотор сайтад гарна.
+        </p>
+        <p>
+          Цахимаар худалдах дугаарын үнийг <b>«Цахим борлуулалт → Үнэ тохируулах»</b>-аас оруулна.
+          Энд зөвхөн Heyzine-д байхгүй, гараар нэмэх хэвлэлүүд харагдана.
+        </p>
+      </div>
+
+      {magazines.length === 0 && (
+        <div className="text-center py-12 border border-dashed border-slate-300 space-y-3">
+          <p className="text-slate-600">Гараар нэмсэн хэвлэл одоогоор алга.</p>
+          <button onClick={onAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-[#0F172A] underline underline-offset-4">
+            <Plus className="w-4 h-4" /> Эхний хэвлэлээ нэмэх
+          </button>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {magazines.map((mag) => (

@@ -34,8 +34,9 @@ export default function App() {
             <Route path="buy/:id" element={<Buy />} />
             <Route path="track" element={<TrackOrder />} />
             <Route path="read/:id" element={<Reader />} />
-            <Route path="admin" element={<Admin />} />
           </Route>
+          {/* Admin has its own shell, outside the public site layout */}
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

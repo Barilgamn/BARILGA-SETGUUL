@@ -52,7 +52,7 @@ export function AdminGate({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="max-w-sm mx-auto sm:mt-10 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8 space-y-6">
+    <div className="max-w-sm mx-auto mt-6 sm:mt-16 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8 space-y-6">
       <div className="text-center space-y-2">
         <LockKeyhole className="w-8 h-8 text-amber-600 mx-auto" />
         <h1 className="font-serif text-2xl font-bold text-stone-900">Админ нэвтрэх</h1>
