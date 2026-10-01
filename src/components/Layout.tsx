@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Menu, X, ArrowUpRight, Compass } from 'lucide-react';
+import { User, Menu, X, Compass } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { planSavings } from '../lib/plans';
@@ -35,27 +35,6 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] flex flex-col font-sans text-stone-900 selection:bg-stone-900 selection:text-white">
-      {/* Editorial Announcement Bar */}
-      <div className="bg-stone-950 text-stone-300 text-xs py-2 px-4 print:hidden">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <Link to="/amini-oron-suuts" className="flex items-center gap-2 min-w-0 hover:text-white transition-colors">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
-            <span className="font-medium text-stone-200 truncate"><span className="sm:hidden">Шинэ каталог гарлаа</span><span className="hidden sm:inline">«Амины орон сууц» каталог гарлаа</span></span>
-            <span className="text-stone-400 hidden md:inline truncate">— 8 дахь цуврал</span>
-          </Link>
-          <Link
-            to="/subscribe?plan=yearly"
-            className="text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 shrink-0 transition-colors"
-          >
-            <span className="sm:hidden">Сэтгүүл жилээр −{planSavings('yearly').percent}%</span>
-            <span className="hidden sm:inline">
-              Сэтгүүлийн жилийн захиалгаар {planSavings('yearly').saved.toLocaleString()}₮ хэмнэ
-            </span>
-            <ArrowUpRight className="w-3 h-3" />
-          </Link>
-        </div>
-      </div>
-
       {/* Top Bar - Strict One-Row Three-Zone Contract */}
       <header className="bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-900 sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
