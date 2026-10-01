@@ -74,10 +74,11 @@ export function Layout() {
               {user ? (
                 <Link
                   to="/profile"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 text-stone-950 text-sm font-semibold hover:text-amber-700 transition-colors whitespace-nowrap"
+                  aria-label="Миний хэвлэлүүд"
+                  title="Миний хэвлэлүүд"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-full text-stone-700 hover:text-amber-700 hover:bg-stone-100 transition-colors"
                 >
-                  <User className="h-4 w-4 text-stone-600" />
-                  <span>Миний хэвлэлүүд</span>
+                  <User className="h-5 w-5" />
                 </Link>
               ) : (
                 <Link
