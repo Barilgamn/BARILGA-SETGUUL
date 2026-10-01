@@ -5,6 +5,7 @@ import { ChevronLeft, Loader2 } from 'lucide-react';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { findHeyzineMagazine } from '../lib/heyzine';
 import { getReadAccess } from '../lib/purchases';
+import { SaveButton } from '../components/SaveButton';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Reader() {
@@ -129,7 +130,7 @@ export function Reader() {
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="font-bold text-[#0F172A] text-sm sm:text-base leading-tight truncate max-w-[70vw] sm:max-w-md">
+            <h1 className="font-bold text-[#0F172A] text-sm sm:text-base leading-tight truncate max-w-[60vw] sm:max-w-md">
               {magazine.title}
             </h1>
             {magazine.issueNumber && magazine.issueNumber.trim() !== magazine.title?.trim() && (
@@ -137,6 +138,7 @@ export function Reader() {
             )}
           </div>
         </div>
+        <SaveButton issue={magazine} variant="overlay" className="shrink-0 shadow-none border border-slate-200" />
       </div>
 
       {/* Embedded Reader */}

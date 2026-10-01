@@ -4,6 +4,7 @@ import { MOCK_MAGAZINES } from '../lib/data';
 import { fetchHeyzineMagazines } from '../lib/heyzine';
 import { CATALOG_COVER } from './HouseCatalog';
 import { listMagazines } from '../lib/records';
+import { SaveButton } from '../components/SaveButton';
 import { ArrowRight, ArrowUpRight, Search, Check, Lock } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 
@@ -258,6 +259,7 @@ export function Home() {
                 <Link to="/subscribe" className={btnLine}>
                   Хэвлэмэлээр захиалах
                 </Link>
+                <SaveButton issue={leadIssue} className="py-3.5" />
               </div>
 
               <dl className="mt-12 grid grid-cols-3 border-t border-stone-300 text-left">
@@ -298,7 +300,10 @@ export function Home() {
           <div className="flex lg:grid lg:grid-cols-6 gap-5 sm:gap-6 overflow-x-auto snap-x scroll-px-4 sm:scroll-px-0 hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2">
             {recentIssues.map(item => (
               <Link key={item.id} to={readHref(item)} className="group snap-start shrink-0 w-40 sm:w-44 lg:w-auto">
-                <Cover src={item.coverImage} alt={item.title} className="shadow-[0_18px_36px_-18px_rgba(28,25,23,0.5)]" />
+                <div className="relative">
+                  <Cover src={item.coverImage} alt={item.title} className="shadow-[0_18px_36px_-18px_rgba(28,25,23,0.5)]" />
+                  <SaveButton issue={item} variant="overlay" className="absolute top-2 right-2" />
+                </div>
                 <p className="mt-3 font-serif text-lg font-bold text-stone-950 leading-tight">
                   {item.title.match(/№\s?\d+/)?.[0] || item.title}
                 </p>
@@ -403,13 +408,16 @@ export function Home() {
               ))}
             {filteredMagazines.slice(0, visibleCount).map(item => (
               <article key={item.id} className="group flex flex-col">
-                <Link to={readHref(item)} className="block">
-                  <Cover
-                    src={item.coverImage}
-                    alt={item.title}
-                    className="shadow-[0_14px_30px_-16px_rgba(28,25,23,0.45)] transition-shadow group-hover:shadow-[0_24px_40px_-18px_rgba(28,25,23,0.55)]"
-                  />
-                </Link>
+                <div className="relative">
+                  <Link to={readHref(item)} className="block">
+                    <Cover
+                      src={item.coverImage}
+                      alt={item.title}
+                      className="shadow-[0_14px_30px_-16px_rgba(28,25,23,0.45)] transition-shadow group-hover:shadow-[0_24px_40px_-18px_rgba(28,25,23,0.55)]"
+                    />
+                  </Link>
+                  <SaveButton issue={item} variant="overlay" className="absolute top-2 right-2" />
+                </div>
                 <div className="pt-4 flex flex-col flex-1">
                   <h3 className="font-serif text-base sm:text-lg font-bold text-stone-950 leading-snug line-clamp-2">
                     <Link to={readHref(item)} className="hover:underline underline-offset-4 decoration-1">

@@ -77,7 +77,7 @@ export function Layout() {
                   className="inline-flex items-center gap-2 px-4 py-2.5 text-stone-950 text-sm font-semibold hover:text-amber-700 transition-colors whitespace-nowrap"
                 >
                   <User className="h-4 w-4 text-stone-600" />
-                  <span>Миний сан</span>
+                  <span>Миний хэвлэлүүд</span>
                 </Link>
               ) : (
                 <Link
@@ -136,7 +136,7 @@ export function Layout() {
               className="mt-4 flex items-center justify-center gap-2 w-full py-3 border border-stone-950 text-stone-950 font-semibold text-sm"
             >
               <User className="h-4 w-4 text-stone-600" />
-              {user ? 'Миний сан' : 'Нэвтрэх'}
+              {user ? 'Миний хэвлэлүүд' : 'Нэвтрэх'}
             </Link>
           </div>
         )}

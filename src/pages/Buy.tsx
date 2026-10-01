@@ -121,7 +121,7 @@ export function Buy() {
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 sm:p-10 text-center space-y-4">
           <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
           <h2 className="font-serif text-2xl font-bold text-stone-900">Төлбөр төлөгдлөө</h2>
-          <p className="text-stone-600">Энэ дугаар «Миний сан»-д нэмэгдсэн. Хүссэн үедээ нэвтэрч уншаарай.</p>
+          <p className="text-stone-600">Энэ дугаар «Миний хэвлэлүүд»-д нэмэгдсэн. Хүссэн үедээ нэвтэрч уншаарай.</p>
           <Link
             to={`/read/${issue.id}`}
             className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm"
@@ -309,7 +309,7 @@ function InvoicePanel({ purchase }: { purchase: Purchase }) {
       items={[{ label: `${purchase.issueTitle} — цахим хувилбар`, amount: purchase.amount }]}
       // The invoice number lets the admin find this purchase from the bank statement
       reference={`${purchase.id} ${phone}`}
-      note="Төлбөр баталгаажмагц энэ дугаар «Миний сан»-д нээгдэж, энэ хуудас өөрөө шинэчлэгдэнэ."
+      note="Төлбөр баталгаажмагц энэ дугаар «Миний хэвлэлүүд»-д нээгдэж, энэ хуудас өөрөө шинэчлэгдэнэ."
     />
   );
 }

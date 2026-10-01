@@ -18,14 +18,14 @@ export function TrackOrder() {
           Сэтгүүл, багц захиалгаа шалгах
         </h2>
         <p className="text-stone-500 text-sm max-w-sm mx-auto">
-          Сэтгүүлийн болон багц захиалгын явц, хүргэлтийн төлөв таны «Миний сан» хуудсанд харагдана.
+          Сэтгүүлийн болон багц захиалгын явц, хүргэлтийн төлөв таны «Миний хэвлэлүүд» хуудсанд харагдана.
         </p>
         <Link
           to={user ? '/profile' : '/login'}
           state={user ? undefined : { returnTo: '/profile' }}
           className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-semibold text-sm"
         >
-          {user ? 'Миний сан руу очих' : 'Утсаараа нэвтэрч харах'}
+          {user ? 'Миний хэвлэлүүд рүү очих' : 'Утсаараа нэвтэрч харах'}
           <ArrowRight className="w-4 h-4" />
         </Link>
       </div>

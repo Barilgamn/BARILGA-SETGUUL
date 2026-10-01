@@ -5,6 +5,7 @@
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SavedIssuesProvider } from './contexts/SavedIssuesContext';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { MagazineDetail } from './pages/MagazineDetail';
@@ -21,6 +22,7 @@ import { Buy } from './pages/Buy';
 export default function App() {
   return (
     <AuthProvider>
+      <SavedIssuesProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
@@ -39,6 +41,7 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </BrowserRouter>
+      </SavedIssuesProvider>
     </AuthProvider>
   );
 }

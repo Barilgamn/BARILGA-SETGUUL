@@ -4,6 +4,7 @@ import { findHeyzineMagazine } from '../lib/heyzine';
 import { Smartphone, BookOpen, ChevronLeft, Check, Sparkles, ShieldCheck, Truck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getMagazine } from '../lib/records';
+import { SaveButton } from '../components/SaveButton';
 
 export function MagazineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -91,15 +92,18 @@ export function MagazineDetail() {
 
             </div>
 
-            {(magazine.heyzineLink || magazine.locked) && (
-              <Link
-                to={magazine.locked ? `/buy/${magazine.id}` : `/read/${magazine.id}`}
-                className="mt-6 w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-bold text-stone-950 py-3 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 transition-colors"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>{magazine.locked ? `Худалдаж аваад унших · ${magazine.price.toLocaleString()}₮` : 'Цахимаар унших'}</span>
-              </Link>
-            )}
+            <div className="mt-6 w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+              {(magazine.heyzineLink || magazine.locked) && (
+                <Link
+                  to={magazine.locked ? `/buy/${magazine.id}` : `/read/${magazine.id}`}
+                  className="inline-flex items-center justify-center gap-2 text-sm font-bold text-stone-950 py-3 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>{magazine.locked ? `Худалдаж аваад унших · ${magazine.price.toLocaleString()}₮` : 'Цахимаар унших'}</span>
+                </Link>
+              )}
+              <SaveButton issue={magazine} className="rounded-xl bg-white" />
+            </div>
           </div>
           
           {/* Right Column: Editorial Details & Purchasing Options */}

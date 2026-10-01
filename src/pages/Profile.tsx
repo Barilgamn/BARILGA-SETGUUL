@@ -7,6 +7,7 @@ import { MOCK_MAGAZINES } from '../lib/data';
 import { BookOpen, Package, User, LogOut, ExternalLink, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { MyIssues } from '../components/MyIssues';
+import { SavedIssuesList } from '../components/SavedIssuesList';
 
 export function Profile() {
   const { user, profile, signOut } = useAuth();
@@ -67,7 +68,7 @@ export function Profile() {
             <span className="text-xs text-stone-400 font-bold block">
               Хэрэглэгчийн хуудас
             </span>
-            <h1 className="font-serif text-2xl font-bold text-stone-900 tracking-tight">Миний цахим сан</h1>
+            <h1 className="font-serif text-2xl font-bold text-stone-900 tracking-tight">Миний хэвлэлүүд</h1>
             <p className="text-stone-500 text-xs font-mono">{profile.phoneNumber}</p>
           </div>
         </div>
@@ -82,6 +83,8 @@ export function Profile() {
       </div>
 
       
+      <SavedIssuesList />
+
       <MyIssues uid={user.id} />
 
       {/* Сэтгүүлийн захиалгууд */}
