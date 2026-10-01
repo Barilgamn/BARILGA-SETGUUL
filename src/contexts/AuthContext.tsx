@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -18,46 +17,50 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+// Supabase stores phone numbers without the leading "+"
+export function displayPhone(user: User | null): string {
+  return user?.phone ? `+${user.phone.replace(/^\+/, '')}` : '';
+}
+
+function profileOf(user: User): UserProfile {
+  return {
+    uid: user.id,
+    phoneNumber: displayPhone(user),
+    createdAt: new Date(user.created_at).getTime(),
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      
-      if (currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          setProfile(userSnap.data() as UserProfile);
-        } else {
-          const newProfile: UserProfile = {
-            uid: currentUser.uid,
-            phoneNumber: currentUser.phoneNumber || '',
-            createdAt: Date.now(),
-          };
-          await setDoc(userRef, newProfile);
-          setProfile(newProfile);
-        }
-      } else {
-        setProfile(null);
-      }
-      
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
       setLoading(false);
     });
-
-    return () => unsubscribe();
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    return () => data.subscription.unsubscribe();
   }, []);
 
+  // Keep a profiles row for phone sign-ins so admins can see who bought what
+  useEffect(() => {
+    if (!user?.phone) return;
+    supabase
+      .from('profiles')
+      .upsert({ id: user.id, phone: displayPhone(user) }, { onConflict: 'id', ignoreDuplicates: true })
+      .then(({ error }) => error && console.error('Profile upsert failed:', error.message));
+  }, [user]);
+
   const signOut = async () => {
-    await firebaseSignOut(auth);
+    await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile: user ? profileOf(user) : null, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

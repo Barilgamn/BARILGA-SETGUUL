@@ -1,42 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { listMagazines, listMyOrders, listMySubscriptions } from '../lib/records';
 import { Order } from '../types';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { BookOpen, Package, User, LogOut, ExternalLink, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { MyIssues } from '../components/MyIssues';
 
 export function Profile() {
   const { user, profile, signOut } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [magazines, setMagazines] = useState<Map<string, any>>(new Map());
   const [activeTab, setActiveTab] = useState<'digital' | 'orders'>('digital');
 
   useEffect(() => {
     async function fetchOrders() {
       if (!user) return;
       try {
-        const qOrders = query(
-          collection(db, 'orders'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const qSubs = query(
-          collection(db, 'subscription_orders'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-
-        const [snapshot, snapSubs] = await Promise.all([getDocs(qOrders), getDocs(qSubs)]);
-        
-        const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-        const subsData = snapSubs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+        const [ordersData, subsData, mags] = await Promise.all([
+          listMyOrders(user.id),
+          listMySubscriptions(user.id),
+          listMagazines().catch(() => []),
+        ]);
         setOrders(ordersData);
         setSubscriptions(subsData);
+        setMagazines(new Map([...MOCK_MAGAZINES, ...mags].map(m => [m.id, m])));
       } catch (err) {
         console.error('Error fetching orders:', err);
       } finally {
@@ -50,7 +41,8 @@ export function Profile() {
     return <div className="text-center py-20">Нэвтэрч орно уу</div>;
   }
 
-  const digitalOrders = orders.filter(o => o.format === 'digital' || o.format === 'both');
+  // Only paid digital orders can be read
+  const digitalOrders = orders.filter(o => (o.format === 'digital' || o.format === 'both') && o.paymentStatus === 'paid');
   const physicalOrders = orders.filter(o => o.format === 'print' || o.format === 'both');
 
   const getStatusBadge = (status: string) => {
@@ -72,8 +64,8 @@ export function Profile() {
             <User className="h-7 w-7 text-amber-400" />
           </div>
           <div>
-            <span className="text-[11px] uppercase tracking-widest font-mono text-stone-400 font-bold block">
-              ХЭРЭГЛЭГЧИЙН ХУУДАС
+            <span className="text-xs text-stone-400 font-bold block">
+              Хэрэглэгчийн хуудас
             </span>
             <h1 className="font-serif text-2xl font-bold text-stone-900 tracking-tight">Миний цахим сан</h1>
             <p className="text-stone-500 text-xs font-mono">{profile.phoneNumber}</p>
@@ -90,6 +82,8 @@ export function Profile() {
       </div>
 
       
+      <MyIssues uid={user.id} />
+
       {/* Сэтгүүлийн захиалгууд */}
       {subscriptions.length > 0 && (
         <section className="mb-8">
@@ -159,8 +153,7 @@ export function Profile() {
             </div>
           ) : (
             digitalOrders.map(order => {
-              const mag = MOCK_MAGAZINES.find(m => m.id === order.magazineId);
-              if (!mag) return null;
+              const mag = magazines.get(order.magazineId) || { id: order.magazineId, title: (order as any).magazineTitle, coverImage: '', issueNumber: '' };
               
               return (
                 <div key={order.id} className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm flex flex-col group">
@@ -194,8 +187,7 @@ export function Profile() {
             </div>
           ) : (
             physicalOrders.map(order => {
-              const mag = MOCK_MAGAZINES.find(m => m.id === order.magazineId);
-              if (!mag) return null;
+              const mag = magazines.get(order.magazineId) || { id: order.magazineId, title: (order as any).magazineTitle, coverImage: '', issueNumber: '' };
               
               return (
                 <div key={order.id} className="bg-white rounded-xl border border-slate-100 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-shadow">

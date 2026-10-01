@@ -1,15 +1,29 @@
 @import "tailwindcss";
 
+/* Inter, Lora and JetBrains Mono all ship cyrillic + cyrillic-ext, so Mongolian
+   Ө/Ү render in the same face as the rest of the word. */
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: 'Lora', Georgia, Cambria, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: #F8F9FA;
+    font-family: var(--font-sans);
+    background-color: #FAF8F4;
     color: #0F172A;
     -webkit-font-smoothing: antialiased;
   }
 
-  .font-serif {
-    font-family: 'Playfair Display', Georgia, Cambria, serif;
+  /* Anchor jumps land below the sticky header */
+  :target {
+    scroll-margin-top: 5rem;
   }
 }
 

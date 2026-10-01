@@ -1,72 +1,86 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
-import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { addMagazine, createManualSubscription, deleteMagazine, listAllSubscriptions, listMagazines, updateMagazine, updateSubscription } from '../lib/records';
+import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard } from 'lucide-react';
+import { AdminGate } from '../components/AdminGate';
+import { useAuth } from '../contexts/AuthContext';
+import { AdminCatalogOrders } from './admin/CatalogOrders';
+import { AdminDigitalSales } from './admin/DigitalSales';
+import { AdminMagazineOrders } from './admin/MagazineOrders';
 import { SubscriptionOrder } from '../types';
 
+type AdminTab = 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
+
+const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = [
+  { id: 'digital_sales', label: 'Цахим борлуулалт', icon: CreditCard },
+  { id: 'catalog_orders', label: 'Каталогийн захиалга', icon: Package },
+  { id: 'orders', label: 'Багц захиалга', icon: ShoppingBag },
+  { id: 'magazine_orders', label: 'Сэтгүүлийн захиалга', icon: FileText },
+  { id: 'magazines', label: 'Сэтгүүлүүд', icon: BookOpen },
+  { id: 'add_magazine', label: 'Сэтгүүл нэмэх', icon: Plus },
+  { id: 'manual_sub', label: 'Гараар шивэх', icon: Users },
+];
+
 export function Admin() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'add_magazine' | 'manual_sub' | 'magazines'>('orders');
+  return (
+    <AdminGate>
+      <AdminPanel />
+    </AdminGate>
+  );
+}
+
+function AdminPanel() {
+  const { user, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState<AdminTab>('digital_sales');
 
   return (
-    <div className="max-w-6xl mx-auto mt-6 px-4">
-      <div className="flex flex-col sm:flex-row gap-8">
-        
-        {/* Sidebar Navigation */}
-        <div className="w-full sm:w-64 shrink-0">
-          <div className="bg-white rounded-3xl border border-stone-200/90 p-4 sticky top-24 shadow-sm">
-            <h2 className="text-xs font-mono font-bold text-stone-400 uppercase tracking-widest mb-4 px-2">Удирдлага</h2>
-            <nav className="space-y-1">
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'orders' ? 'bg-[#0C121E] text-white shadow-sm' : 'text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                <ShoppingBag className="h-4 w-4 mr-3 text-amber-400" /> Захиалгууд
-              </button>
-              <button
-                onClick={() => setActiveTab('magazines')}
-                className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'magazines' ? 'bg-[#0C121E] text-white shadow-sm' : 'text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                <BookOpen className="h-4 w-4 mr-3 text-amber-400" /> Сэтгүүлүүд
-              </button>
-              <button
-                onClick={() => setActiveTab('add_magazine')}
-                className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'add_magazine' ? 'bg-[#0C121E] text-white shadow-sm' : 'text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                <Plus className="h-4 w-4 mr-3 text-amber-400" /> Сэтгүүл нэмэх
-              </button>
-              <button
-                onClick={() => setActiveTab('manual_sub')}
-                className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'manual_sub' ? 'bg-[#0C121E] text-white shadow-sm' : 'text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                <Users className="h-4 w-4 mr-3 text-amber-400" /> Гараар шивэх
-              </button>
+    <div className="max-w-6xl mx-auto sm:mt-6">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        {/* Tabs: a scrolling strip on phones, a sidebar on desktop */}
+        <div className="w-full lg:w-64 shrink-0">
+          <div className="lg:bg-white lg:rounded-2xl lg:border lg:border-stone-200/90 lg:p-4 lg:sticky lg:top-24 lg:shadow-sm">
+            <nav className="flex lg:flex-col gap-2 lg:gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0">
+              {ADMIN_TABS.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`shrink-0 whitespace-nowrap flex items-center px-4 py-2.5 lg:py-3 rounded-full lg:rounded-xl text-sm font-semibold transition-colors border lg:border-0 ${
+                    activeTab === id
+                      ? 'bg-[#0C121E] border-[#0C121E] text-white'
+                      : 'bg-white border-stone-300 text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <Icon className="h-4 w-4 mr-2 lg:mr-3 text-amber-400" /> {label}
+                </button>
+              ))}
             </nav>
+            <div className="hidden lg:block mt-4 pt-4 border-t border-stone-100 px-2 space-y-2">
+              <p className="text-xs text-stone-500 truncate">{user?.email}</p>
+              <button onClick={signOut} className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-stone-900">
+                <LogOut className="w-4 h-4" /> Гарах
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
+          {activeTab === 'digital_sales' && <AdminDigitalSales />}
+          {activeTab === 'catalog_orders' && <AdminCatalogOrders />}
           {activeTab === 'orders' && <AdminOrders />}
+          {activeTab === 'magazine_orders' && <AdminMagazineOrders />}
           {activeTab === 'magazines' && <AdminMagazines />}
           {activeTab === 'add_magazine' && <AdminAddMagazine />}
           {activeTab === 'manual_sub' && <AdminManualSubscription />}
+          <button onClick={signOut} className="lg:hidden mt-10 inline-flex items-center gap-2 text-sm font-semibold text-stone-500">
+            <LogOut className="w-4 h-4" /> Гарах ({user?.email})
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ==========================================
-// 1. ORDERS DASHBOARD
-// ==========================================
 function AdminOrders() {
   const [orders, setOrders] = useState<SubscriptionOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,10 +94,7 @@ function AdminOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'subscription_orders'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionOrder));
-      setOrders(data);
+      setOrders(await listAllSubscriptions());
     } catch (err) {
       console.error(err);
     } finally {
@@ -91,11 +102,31 @@ function AdminOrders() {
     }
   };
 
+  // Marking paid starts the subscription period from today
+  const togglePaid = async (order: SubscriptionOrder) => {
+    const paid = order.paymentStatus !== 'paid';
+    if (paid && !window.confirm(`${order.fullName} — ${order.price.toLocaleString()}₮ төлбөр орсныг шалгасан уу?`)) return;
+    const months = order.plan === 'yearly' ? 12 : order.plan === 'half-year' ? 6 : 3;
+    const start = new Date();
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + months);
+    try {
+      await updateSubscription(
+        order.id,
+        paid
+          ? { paymentStatus: 'paid', startDate: start.getTime(), endDate: end.getTime() }
+          : { paymentStatus: 'pending' }
+      );
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+      alert('Алдаа гарлаа');
+    }
+  };
+
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'subscription_orders', orderId), {
-        deliveryStatus: newStatus
-      });
+      await updateSubscription(orderId, { deliveryStatus: newStatus as SubscriptionOrder['deliveryStatus'] });
       fetchOrders(); // refresh
     } catch (err) {
       alert('Алдаа гарлаа');
@@ -196,8 +227,16 @@ function AdminOrders() {
                       {order.plan === 'quarterly' ? 'Улирал' : order.plan === 'half-year' ? 'Хагас жил' : 'Жил'}
                     </td>
                     <td className="px-4 py-4">
-                      <span className="font-bold text-[#e11d48] text-sm">{order.price?.toLocaleString()}₮</span>
-                      <div className="text-xs text-slate-500">{order.paymentMethod}</div>
+                      <span className="font-bold text-[#0F172A] text-sm tabular-nums">{order.price?.toLocaleString()}₮</span>
+                      <button
+                        onClick={() => togglePaid(order)}
+                        className={`mt-1 block text-xs font-semibold px-2 py-1 rounded ${
+                          order.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                        }`}
+                        title={order.paymentStatus === 'paid' ? 'Төлөөгүй болгох' : 'Төлбөр орсон бол дарна уу'}
+                      >
+                        {order.paymentStatus === 'paid' ? 'Төлсөн ✓' : 'Төлөөгүй · тэмдэглэх'}
+                      </button>
                     </td>
                     <td className="px-4 py-4">
                       {getStatusBadge(order.deliveryStatus)}
@@ -214,7 +253,6 @@ function AdminOrders() {
                         <option value="pending">Хүлээгдэж буй</option>
                         <option value="delivering">Хүргэлтэнд</option>
                         <option value="delivered">Хүргэгдсэн</option>
-            <option value="expiring">Хугацаа дуусч буй</option>
                       </select>
                     </td>
                   </tr>
@@ -262,7 +300,7 @@ function AdminManualSubscription() {
         createdAt: Date.now(), endDate: Date.now() + (formData.plan === 'yearly' ? 31536000000 : formData.plan === 'half-year' ? 15768000000 : 7884000000),
         digitalCode: formData.freeCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
       };
-      await addDoc(collection(db, 'subscription_orders'), manualOrder);
+      await createManualSubscription(manualOrder as any);
       alert('Амжилттай бүртгэгдлээ. Дижитал код: ' + manualOrder.digitalCode);
       setFormData({ fullName: '', phone: '', email: '', companyName: '', plan: 'yearly', freeCode: '' });
     } catch (err) {
@@ -349,9 +387,13 @@ function AdminAddMagazine() {
       let finalCoverImage = coverImage;
 
       if (importMethod === 'pdf') {
+        const { data: session } = await supabase.auth.getSession();
         const response = await fetch('/api/magazines/heyzine', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.session?.access_token ?? ''}`,
+          },
           body: JSON.stringify({ pdfUrl, title })
         });
         const data = await response.json();
@@ -371,8 +413,8 @@ function AdminAddMagazine() {
         createdAt: Date.now()
       };
       
-      const docRef = await addDoc(collection(db, 'magazines'), newMagazine);
-      setResult({ id: docRef.id, ...newMagazine });
+      const { createdAt: _createdAt, ...fields } = newMagazine;
+      setResult(await addMagazine(fields));
       
       setTitle(''); setIssueNumber(''); setDescription(''); setCoverImage(''); setPdfUrl(''); setHeyzineLinkInput('');
     } catch (err: any) {
@@ -479,7 +521,6 @@ function AdminAddMagazine() {
 // ==========================================
 // 4. MAGAZINES LIST & EDIT
 // ==========================================
-import { deleteDoc } from 'firebase/firestore';
 
 function AdminMagazines() {
   const [magazines, setMagazines] = useState<any[]>([]);
@@ -504,10 +545,7 @@ function AdminMagazines() {
   const fetchMagazines = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'magazines'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMagazines(data);
+      setMagazines(await listMagazines());
     } catch (err) {
       console.error(err);
     } finally {
@@ -537,8 +575,8 @@ function AdminMagazines() {
     if (!editingId) return;
     
     try {
-      await updateDoc(doc(db, 'magazines', editingId), {
-        title, description, issueNumber, category, coverImage, 
+      await updateMagazine(editingId, {
+        title, description, issueNumber, category, coverImage,
         priceDigital, pricePrint, heyzineLink, pdfUrl
       });
       alert('Амжилттай шинэчиллээ');
@@ -553,7 +591,7 @@ function AdminMagazines() {
   const handleDelete = async (id: string) => {
     if (window.confirm('Үнэхээр устгах уу? Устгасан өгөгдлийг сэргээх боломжгүй.')) {
       try {
-        await deleteDoc(doc(db, 'magazines', id));
+        await deleteMagazine(id);
         fetchMagazines();
       } catch (err) {
         console.error(err);
