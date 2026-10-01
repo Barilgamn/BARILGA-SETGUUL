@@ -17,6 +17,7 @@ import { Reader } from './pages/Reader';
 import { Admin } from './pages/Admin';
 import { Subscribe } from './pages/Subscribe';
 import { HouseCatalog } from './pages/HouseCatalog';
+import { Library } from './pages/Library';
 import { Buy } from './pages/Buy';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="checkout/:id" element={<Checkout />} />
             <Route path="subscribe" element={<Subscribe />} />
+            <Route path="tsahim-nomuud" element={<Library />} />
             <Route path="amini-oron-suuts" element={<HouseCatalog />} />
             <Route path="buy/:id" element={<Buy />} />
             <Route path="track" element={<TrackOrder />} />

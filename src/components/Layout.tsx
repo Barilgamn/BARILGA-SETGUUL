@@ -39,10 +39,17 @@ export function Layout() {
 
   const navLinks = [
     { label: 'Барилга МН сэтгүүл', path: '/#barilga-mn' },
-    { label: 'Цахим номууд', path: '/#magazines' },
+    { label: 'Цахим номууд', path: '/tsahim-nomuud' },
     { label: 'Амины орон сууц каталоги', path: '/amini-oron-suuts' },
     { label: 'Холбоо барих', path: '/#contact' },
   ];
+
+  // In-app menu links; a #section link also works when that section is
+  // already the current address (the route doesn't change, so scroll here)
+  const jumpTo = (path: string) => {
+    const [pathname, hash] = path.split('#');
+    if (hash && location.pathname === pathname) document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const isLinkActive = (path: string) => {
     const [pathname, hash] = path.split('#');
@@ -68,9 +75,10 @@ export function Layout() {
               {navLinks.map((link) => {
                 const isActive = isLinkActive(link.path);
                 return (
-                  <a
+                  <Link
                     key={link.label}
-                    href={link.path}
+                    to={link.path}
+                    onClick={() => jumpTo(link.path)}
                     className={`text-sm font-semibold transition-colors py-1.5 border-b-2 whitespace-nowrap ${
                       isActive
                         ? 'text-stone-950 border-stone-950'
@@ -78,7 +86,7 @@ export function Layout() {
                     }`}
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 );
               })}
             </nav>
@@ -123,14 +131,17 @@ export function Layout() {
           <div className="xl:hidden border-t border-stone-200 bg-[#FAF8F4] px-4 pt-2 pb-5 shadow-lg">
             <nav className="flex flex-col">
               {navLinks.map((link) => (
-                <a
+                <Link
                   key={link.label}
-                  href={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
+                  to={link.path}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    jumpTo(link.path);
+                  }}
                   className="py-3.5 text-base font-medium text-stone-800 hover:text-stone-950 border-b border-stone-100"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
             <Link
@@ -173,11 +184,11 @@ export function Layout() {
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-stone-200">Хэвлэлүүд</h4>
               <ul className="space-y-2 text-xs">
-                <li><a href="/?category=magazine#magazines" className="hover:text-stone-200 transition-colors">Барилга МН сэтгүүл</a></li>
+                <li><Link to="/tsahim-nomuud?category=magazine" className="hover:text-stone-200 transition-colors">Барилга МН сэтгүүл</Link></li>
                 <li><Link to="/amini-oron-suuts" className="hover:text-stone-200 transition-colors">«Амины орон сууц» каталог</Link></li>
-                <li><a href="/?category=norm#magazines" className="hover:text-stone-200 transition-colors">Норм дүрэм /БНбД/</a></li>
-                <li><a href="/?category=research#magazines" className="hover:text-stone-200 transition-colors">Барилгын үнэ ханшийн судалгаа</a></li>
-                <li><a href="/?category=book#magazines" className="hover:text-stone-200 transition-colors">Ном, гарын авлага, товхимол</a></li>
+                <li><Link to="/tsahim-nomuud?category=norm" className="hover:text-stone-200 transition-colors">Норм дүрэм /БНбД/</Link></li>
+                <li><Link to="/tsahim-nomuud?category=research" className="hover:text-stone-200 transition-colors">Барилгын үнэ ханшийн судалгаа</Link></li>
+                <li><Link to="/tsahim-nomuud?category=book" className="hover:text-stone-200 transition-colors">Ном, гарын авлага, товхимол</Link></li>
               </ul>
             </div>
 

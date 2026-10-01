@@ -1,12 +1,11 @@
 import { Fragment, useState, useEffect, useRef, ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { MOCK_MAGAZINES } from '../lib/data';
-import { fetchHeyzineMagazines } from '../lib/heyzine';
+import { Link, useNavigate } from 'react-router-dom';
 import { CATALOG_COVER } from './HouseCatalog';
-import { listMagazines } from '../lib/records';
+import { CATEGORIES, displayTitle, issueNo, readHref, useLibrary } from '../lib/library';
+import { Cover } from '../components/LibraryCard';
 import { SaveButton } from '../components/SaveButton';
 import { PagePreview, previewPdfUrl } from '../components/PagePreview';
-import { ArrowRight, ArrowUpRight, Search, Check, Lock } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Search, Check } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 
 const PLANS = [
@@ -63,40 +62,6 @@ const SALE_POINTS = [
   { name: 'Барилга.МН төв оффис', loc: 'БЗД, 6-р хороо, 21-р сургуулийн баруун талд', type: 'Төв редакц' },
 ];
 
-const CATEGORIES = [
-  { id: 'all', label: 'Бүгд' },
-  { id: 'magazine', label: 'Сэтгүүл' },
-  { id: 'book', label: 'Ном, товхимол' },
-  { id: 'norm', label: 'Норм дүрэм' },
-  { id: 'standard', label: 'Стандарт' },
-  { id: 'research', label: 'Судалгаа' },
-  { id: 'blueprint', label: 'Зураг төсөл' },
-];
-
-// Issue number from the title ("…№191", "…сэтгүүл 177") or, for issues added
-// in the admin, the separate issue field ("195")
-function issueNo(mag: any): number | null {
-  const fromTitle = mag.title?.match(/(?:№\s?|сэтгүүл\s+)(\d{1,3})(?!\d)/i)?.[1];
-  // Only when the field is just a number ("195", "№195"), not a year inside a subtitle
-  const fromField = String(mag.issueNumber || '').match(/^\s*№?\s*(\d{1,3})\s*$/)?.[1];
-  const n = Number(fromTitle ?? fromField);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-// Title with its number, for issues whose title doesn't carry one
-function displayTitle(mag: any): string {
-  const n = issueNo(mag);
-  return n && !/№\s?\d/.test(mag.title || '') && mag.category === 'magazine' ? `${mag.title} №${n}` : mag.title;
-}
-
-const flipbookKey = (link: string) => String(link || '').match(/flip-book\/([0-9a-f]{10})/i)?.[1]?.toLowerCase();
-
-// Two columns on phones make 24 covers ~4,500px of scrolling; start smaller there
-const pageSize = () => (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches ? 24 : 8);
-
-const readHref = (item: any) =>
-  item.locked ? `/buy/${item.id}` : item.heyzineLink ? `/read/${item.id}` : `/magazine/${item.id}`;
-
 // Editorial section opener: a full-width ink rule, a small kicker and a serif title
 function SectionHead({ kicker, title, action }: { kicker: string; title: string; action?: ReactNode }) {
   return (
@@ -112,33 +77,11 @@ function SectionHead({ kicker, title, action }: { kicker: string; title: string;
   );
 }
 
-function Cover({ src, alt, className = '', eager = false }: { src: string; alt: string; className?: string; eager?: boolean }) {
-  return (
-    <div className={`relative aspect-[3/4] bg-stone-200 overflow-hidden ${className}`}>
-      <img
-        src={src}
-        alt={alt}
-        loading={eager ? 'eager' : 'lazy'}
-        referrerPolicy="no-referrer"
-        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-      />
-      {/* spine */}
-      <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/25 via-white/10 to-transparent pointer-events-none" />
-    </div>
-  );
-}
-
 export function Home() {
-  const [magazines, setMagazines] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { magazines, loaded } = useLibrary();
+  const navigate = useNavigate();
+  const [librarySearch, setLibrarySearch] = useState('');
   const plansRef = useRef<HTMLDivElement>(null);
-
-  // Menu links like /#magazines arrive before the catalog has rendered; jump
-  // to the section once it exists
-  useEffect(() => {
-    if (!loaded || !window.location.hash) return;
-    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
-  }, [loaded]);
 
   useEffect(() => {
     const row = plansRef.current;
@@ -148,50 +91,7 @@ export function Home() {
     }
   }, []);
 
-  const [searchParams] = useSearchParams();
-  // Footer links pre-select a category with ?category=
-  const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') || 'all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [visibleCount, setVisibleCount] = useState(pageSize);
   const [showAllBoard, setShowAllBoard] = useState(false);
-
-  useEffect(() => {
-    // Heyzine and Supabase load independently: the catalog shows as soon as
-    // Heyzine answers, and a slow or unreachable database can't hold it back
-    let cancelled = false;
-    let heyzineMags: any[] = [];
-    let dbMags: any[] = [];
-    let heyzineDone = false;
-    const publish = () => {
-      if (cancelled || !heyzineDone) return;
-      // Admin-added issues win over the same flipbook from the Heyzine list;
-      // everything is shown newest first so additions don't sink to the end
-      const dbKeys = new Set(dbMags.map(m => flipbookKey(m.heyzineLink)).filter(Boolean));
-      const liveMags = [...dbMags, ...heyzineMags.filter(m => !dbKeys.has(flipbookKey(m.heyzineLink)))].sort(
-        (a, b) => (b.publishedDate || 0) - (a.publishedDate || 0)
-      );
-      setMagazines(liveMags.length > 0 ? liveMags : MOCK_MAGAZINES);
-      setLoaded(true);
-    };
-    fetchHeyzineMagazines().then(items => {
-      heyzineMags = items;
-      heyzineDone = true;
-      publish();
-    });
-    listMagazines()
-      .then(items => {
-        dbMags = items;
-        publish();
-      })
-      .catch(err => console.error('Failed to fetch magazines from Supabase:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    setVisibleCount(pageSize());
-  }, [activeCategory, searchQuery]);
 
   // The lead and «Өмнөх дугаарууд» follow issue numbers, not upload dates
   const issues = magazines
@@ -208,21 +108,6 @@ export function Home() {
   // The magazine has come out monthly since 2010, so its latest issue number
   // is how many issues have been published (titles read "…№191" or "…сэтгүүл 177")
   const issuesPublished = issues.reduce((max, mag) => Math.max(max, issueNo(mag) ?? 0), 0);
-
-  const visibleCategories = CATEGORIES.filter(
-    cat => cat.id === 'all' || magazines.some(mag => mag.category === cat.id)
-  );
-
-  const filteredMagazines = magazines.filter(mag => {
-    const matchesCategory = activeCategory === 'all' || mag.category === activeCategory;
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      mag.title?.toLowerCase().includes(q) ||
-      mag.issueNumber?.toLowerCase().includes(q) ||
-      mag.description?.toLowerCase().includes(q);
-    return matchesCategory && matchesSearch;
-  });
 
   const btnInk =
     'inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-stone-950 hover:bg-stone-800 text-white text-sm font-semibold transition-colors';
@@ -313,15 +198,12 @@ export function Home() {
             kicker="Барилга МН сэтгүүл"
             title="Өмнөх дугаарууд"
             action={
-              <button
-                onClick={() => {
-                  setActiveCategory('magazine');
-                  document.getElementById('magazines')?.scrollIntoView({ behavior: 'smooth' });
-                }}
+              <Link
+                to="/tsahim-nomuud?category=magazine"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-950 hover:text-amber-700 py-2"
               >
                 Бүх дугаар <ArrowRight className="w-4 h-4" />
-              </button>
+              </Link>
             }
           />
           <div className="flex lg:grid lg:grid-cols-6 gap-5 sm:gap-6 overflow-x-auto snap-x scroll-px-4 sm:scroll-px-0 hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2">
@@ -373,114 +255,58 @@ export function Home() {
         </div>
       </section>
 
-      {/* ─────────────── Archive */}
+      {/* ─────────────── Library: a way into «Цахим номууд» */}
       <section id="magazines" className="scroll-mt-24">
         <SectionHead
           kicker="Цахим номууд"
           title="Сэтгүүл, ном, норм дүрмийн архив"
           action={
-            <label className="relative w-full sm:w-72 block">
-              <span className="sr-only">Хайх</span>
-              <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
-              <input
-                type="search"
-                placeholder="Гарчиг, дугаараар хайх"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-7 pr-2 py-2.5 bg-transparent border-0 border-b border-stone-400 focus:border-stone-950 text-base sm:text-sm text-stone-950 placeholder:text-stone-500 focus:outline-none"
-              />
-            </label>
+            <Link to="/tsahim-nomuud" className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-950 hover:text-amber-700 py-2">
+              Бүгдийг үзэх{loaded ? ` (${magazines.length.toLocaleString()})` : ''} <ArrowRight className="w-4 h-4" />
+            </Link>
           }
         />
-
-        {/* Category tabs: text with an ink underline */}
-        <nav className="flex overflow-x-auto hide-scrollbar gap-6 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-stone-200 mb-10">
-          {visibleCategories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={e => {
-                setActiveCategory(cat.id);
-                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              }}
-              className={`shrink-0 whitespace-nowrap py-3 -mb-px border-b-2 text-sm font-semibold transition-colors ${
-                activeCategory === cat.id
-                  ? 'border-stone-950 text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-950'
-              }`}
-            >
-              {cat.label}
-              {loaded && (
-                <span className="ml-1.5 font-normal text-stone-400 tabular-nums">
-                  {cat.id === 'all' ? magazines.length : magazines.filter(mag => mag.category === cat.id).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {loaded && filteredMagazines.length === 0 ? (
-          <div className="text-center py-20 space-y-2">
-            <p className="font-serif text-2xl font-bold text-stone-950">Хайлт олдсонгүй</p>
-            <p className="text-stone-500">Өөр үгээр хайх эсвэл ангиллаа өөрчлөөд үзнэ үү.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-12 sm:gap-x-8 sm:gap-y-14">
-            {!loaded &&
-              Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse space-y-3">
-                  <div className="aspect-[3/4] bg-stone-200" />
-                  <div className="h-4 w-3/4 bg-stone-200" />
-                  <div className="h-3 w-1/2 bg-stone-100" />
-                </div>
-              ))}
-            {filteredMagazines.slice(0, visibleCount).map(item => (
-              <article key={item.id} className="group flex flex-col">
-                <div className="relative">
-                  <Link to={readHref(item)} className="block">
-                    <Cover
-                      src={item.coverImage}
-                      alt={item.title}
-                      className="shadow-[0_14px_30px_-16px_rgba(28,25,23,0.45)] transition-shadow group-hover:shadow-[0_24px_40px_-18px_rgba(28,25,23,0.55)]"
-                    />
-                  </Link>
-                  <SaveButton issue={item} variant="overlay" className="absolute top-2 right-2" />
-                </div>
-                <div className="pt-4 flex flex-col flex-1">
-                  <h3 className="font-serif text-base sm:text-lg font-bold text-stone-950 leading-snug line-clamp-2">
-                    <Link to={readHref(item)} className="hover:underline underline-offset-4 decoration-1">
-                      {displayTitle(item)}
-                    </Link>
-                  </h3>
-                  <p className="mt-1.5 text-sm text-stone-500">
-                    {item.publishedDate ? new Date(item.publishedDate).getFullYear() : ''}
-                    {item.pages ? ` · ${item.pages} х.` : ''}
-                  </p>
-                  <p className="mt-auto pt-3 text-sm font-semibold text-stone-950 flex items-center gap-1.5">
-                    {item.locked ? (
-                      <>
-                        <Lock className="w-3.5 h-3.5 text-amber-700" /> {item.price.toLocaleString()}₮
-                      </>
-                    ) : item.heyzineLink ? (
-                      <>
-                        Унших <ArrowUpRight className="w-3.5 h-3.5" />
-                      </>
-                    ) : (
-                      <>Захиалах</>
-                    )}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-
-        {filteredMagazines.length > visibleCount && (
-          <div className="text-center mt-14">
-            <button type="button" onClick={() => setVisibleCount(c => c + pageSize())} className={btnLine}>
-              Цааш үзэх <span className="font-normal opacity-70">({filteredMagazines.length - visibleCount})</span>
-            </button>
-          </div>
-        )}
+        <form
+          role="search"
+          onSubmit={e => {
+            e.preventDefault();
+            const q = librarySearch.trim();
+            navigate(q ? `/tsahim-nomuud?q=${encodeURIComponent(q)}` : '/tsahim-nomuud');
+          }}
+          className="relative max-w-2xl mb-8"
+        >
+          <label className="sr-only" htmlFor="home-library-search">Цахим номын сангаас хайх</label>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-500" />
+          <input
+            id="home-library-search"
+            type="search"
+            value={librarySearch}
+            onChange={e => setLibrarySearch(e.target.value)}
+            placeholder="Нэр, дугаар, түлхүүр үгээр хайх"
+            className="w-full pl-12 pr-28 py-4 bg-white border border-stone-300 focus:border-stone-950 text-base text-stone-950 placeholder:text-stone-400 focus:outline-none"
+          />
+          <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2.5 bg-stone-950 hover:bg-stone-800 text-white text-sm font-semibold">
+            Хайх
+          </button>
+        </form>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-l border-stone-300">
+          {CATEGORIES.filter(cat => cat.id !== 'all').map(cat => {
+            const count = magazines.filter(m => m.category === cat.id).length;
+            return (
+              <Link
+                key={cat.id}
+                to={`/tsahim-nomuud?category=${cat.id}`}
+                className="group border-r border-b border-stone-300 p-5 sm:p-6 hover:bg-stone-950 transition-colors"
+              >
+                <p className="font-serif text-xl font-bold text-stone-950 group-hover:text-white">{cat.label}</p>
+                <p className="mt-6 flex items-center justify-between text-sm text-stone-500 group-hover:text-stone-300">
+                  <span className="tabular-nums">{loaded ? `${count.toLocaleString()} хэвлэл` : '…'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </p>
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
       {/* ─────────────── Subscriptions */}
