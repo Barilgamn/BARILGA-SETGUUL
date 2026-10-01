@@ -1,70 +1,68 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { Smartphone, ShieldCheck, ArrowRight } from 'lucide-react';
+
+// Mongolian numbers are 8 digits; accept them with or without +976
+function toE164(input: string): string | null {
+  const digits = input.replace(/\D/g, '');
+  if (/^\d{8}$/.test(digits)) return `+976${digits}`;
+  if (/^976\d{8}$/.test(digits)) return `+${digits}`;
+  return null;
+}
 
 export function Login() {
   const [phoneNumber, setPhoneNumber] = useState('+976');
   const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = location.state?.returnTo || '/profile';
-
-  useEffect(() => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-      });
-    }
-  }, []);
+  // Callers pass the way back either as router state or as ?redirect=
+  const redirectParam = new URLSearchParams(location.search).get('redirect');
+  const returnTo =
+    location.state?.returnTo || (redirectParam && redirectParam.startsWith('/') ? redirectParam : '/profile');
 
   const handleSendCode = async (e: FormEvent) => {
     e.preventDefault();
-    if (phoneNumber.length < 12) {
-      setError('Утасны дугаараа зөв оруулна уу (+976...)');
+    const phone = toE164(phoneNumber);
+    if (!phone) {
+      setError('Утасны дугаараа зөв оруулна уу (8 оронтой).');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
-    try {
-      const appVerifier = window.recaptchaVerifier;
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      setConfirmationResult(confirmation);
-    } catch (err: any) {
-      console.error(err);
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    setLoading(false);
+    if (error) {
+      console.error('OTP send failed:', error.message);
       setError('Код илгээхэд алдаа гарлаа. Дахин оролдоно уу.');
-    } finally {
-      setLoading(false);
+      return;
     }
+    setSentTo(phone);
   };
 
   const handleVerifyCode = async (e: FormEvent) => {
     e.preventDefault();
-    if (!confirmationResult || verificationCode.length < 6) return;
-    
+    if (!sentTo || verificationCode.length < 6) return;
+
     setLoading(true);
     setError('');
-    
-    try {
-      await confirmationResult.confirm(verificationCode);
-      navigate(returnTo);
-    } catch (err: any) {
-      console.error(err);
-      setError('Баталгаажуулах код буруу байна.');
-    } finally {
-      setLoading(false);
+    const { error } = await supabase.auth.verifyOtp({ phone: sentTo, token: verificationCode, type: 'sms' });
+    setLoading(false);
+    if (error) {
+      console.error('OTP verify failed:', error.message);
+      setError('Баталгаажуулах код буруу эсвэл хугацаа нь дууссан байна.');
+      return;
     }
+    navigate(returnTo, { replace: true });
   };
 
   return (
-    <div className="max-w-md mx-auto mt-12">
+    <div className="max-w-md mx-auto sm:mt-12">
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center mb-8">
           <div className="h-16 w-16 bg-[#0F172A] text-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-md">
@@ -80,7 +78,7 @@ export function Login() {
           </div>
         )}
 
-        {!confirmationResult ? (
+        {!sentTo ? (
           <form onSubmit={handleSendCode} className="space-y-6">
             <div>
               <label htmlFor="phone" className="block text-sm font-bold text-slate-700 mb-2">
@@ -92,12 +90,12 @@ export function Login() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A] transition-colors"
-                placeholder="+976 99001234"
+                placeholder="9900 1234"
+                inputMode="tel"
+                autoComplete="tel"
                 disabled={loading}
               />
             </div>
-            
-            <div id="recaptcha-container"></div>
             
             <button
               type="submit"
@@ -121,10 +119,12 @@ export function Login() {
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A] transition-colors text-center text-2xl tracking-widest font-mono"
                 placeholder="000000"
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 disabled={loading}
               />
               <p className="text-xs text-slate-500 mt-2 text-center">
-                {phoneNumber} дугаарт илгээсэн 6 оронтой кодыг оруулна уу
+                {sentTo} дугаарт илгээсэн 6 оронтой кодыг оруулна уу
               </p>
             </div>
             
@@ -140,7 +140,7 @@ export function Login() {
             <div className="text-center mt-4">
               <button
                 type="button"
-                onClick={() => setConfirmationResult(null)}
+                onClick={() => { setSentTo(null); setVerificationCode(''); }}
                 className="text-sm text-[#F59E0B] hover:text-[#D97706] font-bold"
               >
                 Дугаар өөрчлөх

@@ -3,9 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { findHeyzineMagazine } from '../lib/heyzine';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Order } from '../types';
+import { createOrder, getMagazine, isUuid } from '../lib/records';
+import { displayPhone } from '../contexts/AuthContext';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag } from 'lucide-react';
 
 export function Checkout() {
@@ -29,11 +28,8 @@ export function Checkout() {
             setMagazine(heyzineMag);
             return;
           }
-          const docRef = doc(db, 'magazines', id);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            setMagazine({ id: snap.id, ...snap.data() });
-          }
+          const found = await getMagazine(id);
+          if (found) setMagazine(found);
         } catch (e) {
           console.error(e);
         } finally {
@@ -48,7 +44,7 @@ export function Checkout() {
     city: 'Улаанбаатар',
     district: '',
     addressLine: '',
-    phone: user?.phoneNumber || ''
+    phone: displayPhone(user)
   });
   
   const [loading, setLoading] = useState(false);
@@ -70,32 +66,29 @@ export function Checkout() {
   const needsShipping = format === 'print' || format === 'both';
 
   const handlePayment = async () => {
+    if (!user) {
+      navigate('/login', { state: { returnTo: `${location.pathname}${location.search}` } });
+      return;
+    }
+    if (!isUuid(magazine.id)) {
+      alert('Энэ хэвлэлийг багц захиалгаар авна уу.');
+      navigate('/subscribe');
+      return;
+    }
     if (needsShipping && (!address.district || !address.addressLine)) {
       alert('Хүргэлтийн хаягаа бүрэн оруулна уу');
       return;
     }
-    
+
     setLoading(true);
-    
     try {
-      // Create order in Firestore
-      const orderId = `ord-${Date.now()}`;
-      const newOrder: Order = {
-        id: orderId,
-        userId: user.uid,
+      // Price and statuses are set by the database; admin confirms payment
+      await createOrder({
         magazineId: magazine.id,
         format,
-        totalPrice: getPrice(),
-        paymentStatus: 'paid', // Simulating successful payment
-        deliveryStatus: needsShipping ? 'pending' : 'delivered',
-        createdAt: Date.now(),
-        phoneNumber: address.phone || user.phoneNumber || '',
-        ...(needsShipping ? { shippingAddress: address } : {})
-      };
-      
-      await setDoc(doc(db, 'orders', orderId), newOrder);
-      
-      // Navigate to profile
+        phone: address.phone || displayPhone(user),
+        shippingAddress: needsShipping ? address : undefined,
+      });
       navigate('/profile');
     } catch (err) {
       console.error(err);
@@ -107,7 +100,7 @@ export function Checkout() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-extrabold text-[#0F172A] mb-8 tracking-tight">Захиалга баталгаажуулах</h1>
+      <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] mb-6 sm:mb-8 tracking-tight">Захиалга баталгаажуулах</h1>
       
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="lg:w-2/3 space-y-6">
@@ -190,15 +183,15 @@ export function Checkout() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <h2 className="text-xl font-bold text-[#0F172A] mb-4 flex items-center">
               <CreditCard className="h-5 w-5 mr-2 text-[#F59E0B]" />
-              Төлбөр төлөх
+              Төлбөр
             </h2>
             
             <div className="border border-orange-100 bg-orange-50 p-4 rounded-xl flex items-start">
               <ShieldCheck className="h-6 w-6 text-orange-600 mt-0.5 mr-3 flex-shrink-0" />
               <div>
-                <p className="font-bold text-orange-900">QPay эсвэл Банкны апп</p>
+                <p className="font-bold text-orange-900">Төлбөрийг баталгаажуулах үед</p>
                 <p className="text-sm text-orange-800 mt-1">
-                  Энэхүү демо хувилбар тул шууд захиалах товчийг дарж гүйлгээг амжилттай болсон гэж үзнэ.
+                  Захиалга илгээсний дараа манай ажилтан холбогдож төлбөрийн мэдээллийг өгнө. Захиалгын явц «Миний сан»-д харагдана.
                 </p>
               </div>
             </div>
@@ -236,7 +229,7 @@ export function Checkout() {
               disabled={loading}
               className="w-full bg-[#0F172A] text-white hover:bg-slate-800 py-4 rounded-xl font-bold text-sm transition-colors disabled:opacity-70 flex justify-center items-center shadow-sm"
             >
-              {loading ? 'Уншиж байна...' : 'Төлбөр төлөх'}
+              {loading ? 'Уншиж байна...' : user ? 'Захиалга илгээх' : 'Нэвтэрч захиалах'}
             </button>
           </div>
         </div>

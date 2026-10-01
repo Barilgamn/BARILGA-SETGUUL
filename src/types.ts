@@ -24,6 +24,9 @@ export interface Magazine {
   pages?: number;
   pdfUrl?: string;
   source?: 'heyzine';
+  // Set on paid issues; their links are withheld until bought (see /api/read)
+  price?: number;
+  locked?: boolean;
 }
 
 export interface Order {
@@ -72,4 +75,61 @@ export interface SubscriptionOrder {
   endDate?: number;
   // Optional: Free reading code given by admin
   digitalCode?: string;
+}
+
+// «Амины орон сууц» каталогийн захиалга. Document id нь захиалгын код өөрөө —
+// олон нийт зөвхөн кодоор нь нэг захиалгыг уншиж чадна (firestore.rules).
+export type CatalogOrderStatus = 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type CatalogPaymentStatus = 'unpaid' | 'paid';
+
+export interface CatalogOrder {
+  code: string;
+  productId: string;
+  productTitle: string;
+  quantity: number;
+  unitPrice: number | null;
+  fullName: string;
+  phone: string;
+  deliveryMethod: 'delivery' | 'pickup';
+  district: string;
+  address: string;
+  note: string;
+  status: CatalogOrderStatus;
+  paymentStatus: CatalogPaymentStatus;
+  adminNote?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Цахим дугаарын худалдан авалт. Document id нь нэхэмжлэхийн дугаар (гүйлгээний утга).
+export type PurchaseStatus = 'pending' | 'paid' | 'cancelled';
+export type PurchaseMethod = 'qpay' | 'transfer';
+
+export interface Purchase {
+  id: string;
+  uid: string;
+  phone: string;
+  issueId: string;
+  issueTitle: string;
+  coverImage: string;
+  amount: number;
+  method: PurchaseMethod;
+  status: PurchaseStatus;
+  createdAt: number;
+  paidAt?: number;
+  paidVia?: 'qpay' | 'admin';
+  qpay?: QPayInvoiceInfo;
+}
+
+export interface QPayInvoiceInfo {
+  invoiceId: string;
+  qrImage: string;
+  shortUrl: string;
+  urls: { name: string; description?: string; logo?: string; link: string }[];
+}
+
+export interface BankSettings {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
 }

@@ -1,324 +1,445 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef, ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { fetchHeyzineMagazines } from '../lib/heyzine';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { 
-  BookOpen, 
-  ArrowRight, 
-  Search, 
-  Smartphone, 
-  Check, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  ShieldCheck, 
-  Sparkles,
-  Layers,
-  FileCheck2,
-  TrendingUp,
-  Building2
-} from 'lucide-react';
+import { useHouseCatalog } from './HouseCatalog';
+import { listMagazines } from '../lib/records';
+import { ArrowRight, ArrowUpRight, Search, Check, Lock } from 'lucide-react';
+import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 
-const PAGE_SIZE = 24;
+const PLANS = [
+  {
+    id: 'quarterly',
+    name: 'Улирлын багц',
+    ...PLAN_PRICES.quarterly,
+    blurb: 'Улирлын барилгын төсөл, судалгааны мэдээллийг цаг алдалгүй авах хүсэлтэй мэргэжилтнүүдэд.',
+    features: ['3 сарын хэвлэмэл сэтгүүл', 'Улаанбаатар хот дотор хүргэлттэй', 'Цахимаар унших эрх'],
+    cta: 'Улирлын багц сонгох',
+    featured: false,
+  },
+  {
+    id: 'half-year',
+    name: 'Хагас жилийн багц',
+    ...PLAN_PRICES['half-year'],
+    blurb: 'Барилгын бүтээн байгуулалтын идэвхтэй үеийн бүх сарын судалгаа, үнэ ханшийг багтаасан.',
+    features: ['6 сарын хэвлэмэл сэтгүүл', 'Бүх дугаарын цахим архив', 'Оффис, гэрийн хаягаар хүргэнэ', 'НӨАТ-ын цахим баримт'],
+    cta: 'Хагас жилээр захиалах',
+    featured: false,
+  },
+  {
+    id: 'yearly',
+    name: 'Бүтэн жилийн багц',
+    ...PLAN_PRICES.yearly,
+    blurb: 'Компани, төслийн оффис, архитектор, инженерүүдийн бүтэн жилийн мэргэжлийн ширээний ном.',
+    features: ['12 сарын бүх шинэ дугаар', 'Барилгын үнэ ханшийн жилийн тойм', 'Цахим номын сан бүтэн эрх', 'Шуурхай шуудангийн хүргэлт'],
+    cta: 'Жилийн захиалга хийх',
+    featured: true,
+  },
+] as const;
+
+const YEARLY = planSavings('yearly');
+
+const BOARD = [
+  { name: 'А.Энхтүвшин', role: 'БХБЯ-ны БТГ-ын мэргэжилтэн' },
+  { name: 'Г.Мягмар', role: 'БХҮНТ-ийн УЗ-ийн дарга, гавьяат барилгачин, зөвлөх архитектор' },
+  { name: 'О.Лхагвадорж', role: 'МБМҮХ-ны гүйцэтгэх захирал, зөвлөх инженер' },
+  { name: 'Ж.Дэлгэрсайхан', role: 'СЭЗИС, Санхүүгийн тэнхимийн дэд профессор, эдийн засагч' },
+  { name: 'Б.Мөнхбаяр', role: 'ШУТИС, Барилгын эрчим хүчний хэмнэлтийн төвийн захирал' },
+  { name: 'Д.Сүнжидмаа', role: 'ШУТИС, БАС-ийн дэд профессор, зөвлөх инженер, доктор' },
+  { name: 'Н.Цогтоо', role: 'Зөвлөх архитектор' },
+  { name: 'Б.Батжав', role: '«Монголын ногоон барилгын хүрээлэн» ТББ-ын гүйцэтгэх захирал, архитектор' },
+];
+
+const SALE_POINTS = [
+  { name: 'Интерном дэлгүүр', loc: 'УБ хот дахь бүх салбарууд', type: 'Албан ёсны сүлжээ' },
+  { name: 'Азхур номын дэлгүүр', loc: 'Бүх салбар дэлгүүрүүд', type: 'Номын сүлжээ' },
+  { name: 'Мишээл барилгын их дэлгүүр', loc: 'Хан-Уул дүүрэг, Мишээл экспо', type: 'Төв салбар' },
+  { name: 'Мажестик номын дэлгүүр', loc: 'Их дэлгүүрийн 6 давхарт', type: 'Төв салбар' },
+  { name: 'Барилга Мега Стор', loc: 'БГД, 3-р хороолол', type: 'Төлөөлөгч' },
+  { name: 'Скай Их Дэлгүүр', loc: 'Сүхбаатар дүүрэг', type: 'Салбар' },
+  { name: 'УИД номын тасаг', loc: 'Чингэлтэй дүүрэг, Энхтайваны өргөн чөлөө', type: 'Салбар' },
+  { name: 'Барилга.МН төв оффис', loc: 'БЗД, 6-р хороо, 21-р сургуулийн баруун талд', type: 'Төв редакц' },
+];
+
+const CATEGORIES = [
+  { id: 'all', label: 'Бүгд' },
+  { id: 'magazine', label: 'Сэтгүүл' },
+  { id: 'book', label: 'Ном, товхимол' },
+  { id: 'norm', label: 'Норм дүрэм' },
+  { id: 'standard', label: 'Стандарт' },
+  { id: 'research', label: 'Судалгаа' },
+  { id: 'blueprint', label: 'Зураг төсөл' },
+];
+
+// Two columns on phones make 24 covers ~4,500px of scrolling; start smaller there
+const pageSize = () => (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches ? 24 : 8);
+
+const readHref = (item: any) =>
+  item.locked ? `/buy/${item.id}` : item.heyzineLink ? `/read/${item.id}` : `/magazine/${item.id}`;
+
+// Editorial section opener: a full-width ink rule, a small kicker and a serif title
+function SectionHead({ kicker, title, action }: { kicker: string; title: string; action?: ReactNode }) {
+  return (
+    <header className="border-t border-stone-900 pt-4 sm:pt-5 mb-8 sm:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-amber-700">{kicker}</p>
+        <h2 className="font-serif text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight text-stone-950 leading-[1.1] mt-1 text-balance">
+          {title}
+        </h2>
+      </div>
+      {action}
+    </header>
+  );
+}
+
+function Cover({ src, alt, className = '', eager = false }: { src: string; alt: string; className?: string; eager?: boolean }) {
+  return (
+    <div className={`relative aspect-[3/4] bg-stone-200 overflow-hidden ${className}`}>
+      <img
+        src={src}
+        alt={alt}
+        loading={eager ? 'eager' : 'lazy'}
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+      />
+      {/* spine */}
+      <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/25 via-white/10 to-transparent pointer-events-none" />
+    </div>
+  );
+}
 
 export function Home() {
   const [magazines, setMagazines] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  
-  const categories = [
-    { id: 'all', label: 'Бүх хэвлэл' },
-    { id: 'magazine', label: 'Барилга МН сэтгүүл' },
-    { id: 'book', label: 'Ном, товхимол' },
-    { id: 'norm', label: 'Норм дүрэм /БНбД/' },
-    { id: 'standard', label: 'Стандарт' },
-    { id: 'research', label: 'Судалгаа' },
-    { id: 'blueprint', label: 'Зураг төсөл' }
-  ];
+  const { catalog: houseCatalog } = useHouseCatalog();
+  const plansRef = useRef<HTMLDivElement>(null);
+
+  // Menu links like /#magazines arrive before the catalog has rendered; jump
+  // to the section once it exists
+  useEffect(() => {
+    if (!loaded || !window.location.hash) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+  }, [loaded]);
 
   useEffect(() => {
-    const fetchMagazines = async () => {
-      const [dbMags, heyzineMags] = await Promise.all([
-        getDocs(query(collection(db, 'magazines'), orderBy('createdAt', 'desc')))
-          .then(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-          .catch(err => {
-            console.error('Failed to fetch magazines from Firestore:', err);
-            return [];
-          }),
-        fetchHeyzineMagazines()
-      ]);
-      // Heyzine flipbooks and Firestore magazines replace the seed data once any exist
+    const row = plansRef.current;
+    const featured = row?.querySelector<HTMLElement>('[data-featured]');
+    if (row && featured && row.scrollWidth > row.clientWidth) {
+      row.scrollLeft = featured.offsetLeft - (row.clientWidth - featured.clientWidth) / 2;
+    }
+  }, []);
+
+  const [searchParams] = useSearchParams();
+  // Footer links pre-select a category with ?category=
+  const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') || 'all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [showAllBoard, setShowAllBoard] = useState(false);
+
+  useEffect(() => {
+    // Heyzine and Supabase load independently: the catalog shows as soon as
+    // Heyzine answers, and a slow or unreachable database can't hold it back
+    let cancelled = false;
+    let heyzineMags: any[] = [];
+    let dbMags: any[] = [];
+    let heyzineDone = false;
+    const publish = () => {
+      if (cancelled || !heyzineDone) return;
       const liveMags = [...heyzineMags, ...dbMags];
       setMagazines(liveMags.length > 0 ? liveMags : MOCK_MAGAZINES);
       setLoaded(true);
     };
-    fetchMagazines();
+    fetchHeyzineMagazines().then(items => {
+      heyzineMags = items;
+      heyzineDone = true;
+      publish();
+    });
+    listMagazines()
+      .then(items => {
+        dbMags = items;
+        publish();
+      })
+      .catch(err => console.error('Failed to fetch magazines from Supabase:', err));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
+    setVisibleCount(pageSize());
   }, [activeCategory, searchQuery]);
 
-  const leadIssue = magazines.find(mag => mag.category === 'magazine') || magazines[0];
+  const issues = magazines.filter(mag => mag.category === 'magazine');
+  const leadIssue = issues[0] || magazines[0];
+  const recentIssues = issues.slice(1, 7);
   const leadDescription =
     leadIssue?.description && leadIssue.description.trim() !== leadIssue.title?.trim()
       ? leadIssue.description
       : 'Барилгын салбарын шинэ технологи, ногоон барилгын чиг хандлага, шинэчлэгдсэн БНбД норм ба материалын зах зээлийн үнэ ханшийн цогц судалгаа.';
   const leadYear = leadIssue?.publishedDate ? new Date(leadIssue.publishedDate).getFullYear() : new Date().getFullYear();
+  const leadNumber = leadIssue?.title?.match(/№\s?\d+/)?.[0];
+  // The magazine has come out monthly since 2010, so its latest issue number
+  // is how many issues have been published (titles read "…№191" or "…сэтгүүл 177")
+  const issuesPublished = issues.reduce((max, mag) => {
+    const n = Number(mag.title?.match(/(?:№\s?|сэтгүүл\s+)(\d{1,3})(?!\d)/i)?.[1]);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
 
-  const visibleCategories = categories.filter(
+  const visibleCategories = CATEGORIES.filter(
     cat => cat.id === 'all' || magazines.some(mag => mag.category === cat.id)
   );
 
   const filteredMagazines = magazines.filter(mag => {
     const matchesCategory = activeCategory === 'all' || mag.category === activeCategory;
-    const matchesSearch = !searchQuery.trim() || 
-      mag.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mag.issueNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mag.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      mag.title?.toLowerCase().includes(q) ||
+      mag.issueNumber?.toLowerCase().includes(q) ||
+      mag.description?.toLowerCase().includes(q);
     return matchesCategory && matchesSearch;
   });
 
-  return (
-    <div className="space-y-12 sm:space-y-24">
-      {/* 1. Lead issue */}
-      <section className="relative bg-[#0C121E] text-white rounded-2xl sm:rounded-3xl overflow-hidden border border-stone-800 shadow-2xl">
-        <div className="absolute inset-0 bg-[radial-gradient(#1E293B_1px,transparent_1px)] [background-size:24px_24px] opacity-25"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none"></div>
+  const btnInk =
+    'inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-stone-950 hover:bg-stone-800 text-white text-sm font-semibold transition-colors';
+  const btnLine =
+    'inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-stone-950 text-stone-950 hover:bg-stone-950 hover:text-white text-sm font-semibold transition-colors';
 
+  return (
+    <div className="space-y-20 sm:space-y-28">
+      {/* ─────────────── Lead issue */}
+      <section className="pt-2 sm:pt-6">
         {!leadIssue ? (
-          <div className="relative z-10 p-6 sm:p-12 lg:p-16 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center animate-pulse">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center animate-pulse">
             <div className="order-first lg:order-last lg:col-span-5 flex justify-center">
-              <div className="w-40 sm:w-64 lg:w-full lg:max-w-sm aspect-[3/4] rounded-xl bg-white/5"></div>
+              <div className="w-56 sm:w-72 lg:w-full lg:max-w-md aspect-[3/4] bg-stone-200" />
             </div>
-            <div className="lg:col-span-7 space-y-4">
-              <div className="h-4 w-40 rounded bg-white/10"></div>
-              <div className="h-10 w-3/4 rounded bg-white/10"></div>
-              <div className="h-4 w-full rounded bg-white/5"></div>
-              <div className="h-4 w-2/3 rounded bg-white/5"></div>
+            <div className="lg:col-span-7 space-y-5">
+              <div className="h-4 w-48 bg-stone-200" />
+              <div className="h-14 w-4/5 bg-stone-200" />
+              <div className="h-4 w-full bg-stone-100" />
+              <div className="h-4 w-2/3 bg-stone-100" />
             </div>
           </div>
         ) : (
-        <div className="relative z-10 p-6 sm:p-12 lg:p-16 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-          {/* Cover — first on phones so the issue is visible without scrolling */}
-          <div className="order-first lg:order-last lg:col-span-5 flex justify-center">
-            <Link
-              to={`/magazine/${leadIssue.id}`}
-              className="group relative block w-40 sm:w-64 lg:w-full lg:max-w-sm"
-            >
-              <div className="relative rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 transition-transform duration-500 group-hover:-translate-y-1">
-                <div className="aspect-[3/4] bg-stone-900 overflow-hidden relative">
-                  <img
-                    src={leadIssue.coverImage}
-                    alt={leadIssue.title}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/40 via-white/15 to-transparent pointer-events-none"></div>
-                </div>
-              </div>
-            </Link>
-          </div>
-
-          <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-amber-400">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span>Шинэ дугаар · {leadYear} он</span>
-            </div>
-
-            <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight text-balance">
-              {leadIssue.title}
-            </h1>
-
-            <p className="text-stone-300 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              {leadDescription}
-            </p>
-
-            <div className="hidden sm:grid grid-cols-2 gap-3 py-4 border-y border-stone-800/80 text-sm text-stone-300 text-left">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>120+ нэр төрлийн материалын үнэ ханш</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Хот төлөвлөлт, архитектурын онцлох төслүүд</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>БНбД норм, дүрмийн шинэчлэлтийн тойм</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Утас, компьютер дээр цахимаар унших</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-              {leadIssue.heyzineLink && (
-                <Link
-                  to={`/read/${leadIssue.id}`}
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm transition-colors"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Цахимаар унших</span>
-                </Link>
-              )}
-              <Link
-                to={`/magazine/${leadIssue.id}`}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm transition-colors border border-stone-700/60"
-              >
-                <span>Хэвлэмэлээр захиалах</span>
-                <ArrowRight className="w-4 h-4" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+            {/* Cover — first on phones so the issue is visible without scrolling */}
+            <div className="order-first lg:order-last lg:col-span-5 flex justify-center lg:justify-end">
+              <Link to={readHref(leadIssue)} className="group block w-56 sm:w-72 lg:w-full lg:max-w-md">
+                <Cover
+                  src={leadIssue.coverImage}
+                  alt={leadIssue.title}
+                  eager
+                  className="shadow-[0_40px_80px_-30px_rgba(28,25,23,0.55)] transition-transform duration-500 group-hover:-translate-y-1.5"
+                />
               </Link>
             </div>
 
-            <p className="text-sm text-stone-400">
-              Цахим <span className="text-stone-100 font-semibold tabular-nums">{(leadIssue.priceDigital || 8000).toLocaleString()}₮</span>
-              <span className="mx-2" aria-hidden="true">·</span>
-              Хэвлэмэл <span className="text-stone-100 font-semibold tabular-nums">{(leadIssue.pricePrint || 15000).toLocaleString()}₮</span>
-            </p>
+            <div className="lg:col-span-7 text-center lg:text-left">
+              <p className="inline-flex items-center gap-2.5 text-sm font-semibold text-stone-600">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Шинэ дугаар{leadNumber ? ` · ${leadNumber}` : ''} · {leadYear} он
+              </p>
+
+              <h1 className="font-serif font-bold tracking-tight text-stone-950 leading-[1.02] text-balance mt-5 text-[2.6rem] sm:text-6xl xl:text-7xl">
+                {leadIssue.title}
+              </h1>
+
+              <p className="mt-6 text-lg sm:text-xl text-stone-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                {leadDescription}
+              </p>
+
+              <div className="mt-9 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                {(leadIssue.locked || leadIssue.heyzineLink) && (
+                  <Link to={readHref(leadIssue)} className={btnInk}>
+                    {leadIssue.locked ? `Худалдаж аваад унших · ${leadIssue.price.toLocaleString()}₮` : 'Цахимаар унших'}
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                )}
+                <Link to="/subscribe" className={btnLine}>
+                  Хэвлэмэлээр захиалах
+                </Link>
+              </div>
+
+              <dl className="mt-12 grid grid-cols-3 border-t border-stone-300 text-left">
+                {[
+                  { value: '2010', label: 'оноос хойш' },
+                  { value: '2,500+', label: 'хувь сар бүр' },
+                  { value: issuesPublished ? `${issuesPublished}` : '190+', label: 'дугаар гарсан' },
+                ].map((s, i) => (
+                  <div key={s.label} className={`pt-4 ${i > 0 ? 'pl-4 sm:pl-6 border-l border-stone-300' : ''}`}>
+                    <dd className="font-serif text-2xl sm:text-3xl font-bold text-stone-950 tabular-nums">{s.value}</dd>
+                    <dt className="text-sm text-stone-500 mt-0.5">{s.label}</dt>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
-        </div>
         )}
       </section>
 
-      {/* 2. At a glance */}
-      <section className="bg-white rounded-2xl border border-stone-200/80 p-5 sm:p-6 shadow-sm">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-          {[
-            { icon: Layers, title: loaded ? `${magazines.length}+ хэвлэл` : 'Цахим архив', sub: 'Бүрэн цахим архив' },
-            { icon: FileCheck2, title: 'БНбД, стандарт', sub: 'Хүчин төгөлдөр дүрмүүд' },
-            { icon: TrendingUp, title: 'Сар бүрийн судалгаа', sub: 'Үнэ ханшийн индекс' },
-            { icon: Building2, title: 'Орон даяар', sub: 'Хүргэлтийн сүлжээ' },
-          ].map(({ icon: Icon, title, sub }) => (
-            <div key={sub} className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm sm:text-base font-bold text-stone-900 tabular-nums leading-snug">{title}</p>
-                <p className="text-xs text-stone-500 leading-snug">{sub}</p>
-              </div>
+      {/* ─────────────── Recent issues */}
+      {recentIssues.length > 0 && (
+        <section>
+          <SectionHead
+            kicker="Барилга МН сэтгүүл"
+            title="Өмнөх дугаарууд"
+            action={
+              <button
+                onClick={() => {
+                  setActiveCategory('magazine');
+                  document.getElementById('magazines')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-950 hover:text-amber-700 py-2"
+              >
+                Бүх дугаар <ArrowRight className="w-4 h-4" />
+              </button>
+            }
+          />
+          <div className="flex lg:grid lg:grid-cols-6 gap-5 sm:gap-6 overflow-x-auto snap-x scroll-px-4 sm:scroll-px-0 hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2">
+            {recentIssues.map(item => (
+              <Link key={item.id} to={readHref(item)} className="group snap-start shrink-0 w-40 sm:w-44 lg:w-auto">
+                <Cover src={item.coverImage} alt={item.title} className="shadow-[0_18px_36px_-18px_rgba(28,25,23,0.5)]" />
+                <p className="mt-3 font-serif text-lg font-bold text-stone-950 leading-tight">
+                  {item.title.match(/№\s?\d+/)?.[0] || item.title}
+                </p>
+                <p className="text-sm text-stone-500">
+                  {new Date(item.publishedDate).getFullYear()}
+                  {item.locked && <span className="text-stone-950 font-semibold"> · {item.price.toLocaleString()}₮</span>}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─────────────── House catalog feature */}
+      <section className="-mx-4 sm:-mx-6 lg:-mx-8 bg-[#EDE8DF]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
+          {houseCatalog && (
+            <Link to="/amini-oron-suuts" className="group md:col-span-5 flex justify-center">
+              <Cover
+                src={houseCatalog.coverImage}
+                alt={houseCatalog.title}
+                className="w-52 sm:w-64 shadow-[0_30px_60px_-25px_rgba(28,25,23,0.6)] transition-transform duration-500 group-hover:-translate-y-1"
+              />
+            </Link>
+          )}
+          <div className={`${houseCatalog ? 'md:col-span-7' : 'md:col-span-12'} text-center md:text-left`}>
+            <p className="text-sm font-semibold text-amber-800">Шинэ · 8 дахь цуврал · нэг удаагийн хэвлэл</p>
+            <h2 className="font-serif text-4xl sm:text-5xl font-bold tracking-tight text-stone-950 leading-[1.05] mt-2 text-balance">
+              «Амины орон сууц» каталог
+            </h2>
+            <p className="mt-5 text-lg text-stone-700 leading-relaxed max-w-xl mx-auto md:mx-0">
+              40м²–500м² хүртэлх ногоон загварууд, ногоон болон ипотекийн зээлд хамрагдах заавар, төсвийн аргачлал —
+              мөрөөдлийн байшингаа барих бүх мэдээлэл нэг дор.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+              <Link to="/amini-oron-suuts" className={btnInk}>
+                Дэлгэрэнгүй, худалдаж авах <ArrowRight className="w-4 h-4" />
+              </Link>
+              {houseCatalog && (
+                <Link to={`/read/${houseCatalog.id}`} className={btnLine}>
+                  Цахимаар унших
+                </Link>
+              )}
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
-      {/* 3. Catalog & Digital Archive Filter */}
-      <section id="magazines" className="space-y-8 scroll-mt-24">
-        {/* Section Header with Clean Filter Controls */}
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-stone-200">
-            <div>
-              <span className="text-xs text-amber-600 font-bold block mb-1">
-                Каталог & цахим сан
-              </span>
-              <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">
-                Сэтгүүл, ном, норм дүрмийн сан
-              </h2>
-            </div>
-
-            {/* Search Box */}
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+      {/* ─────────────── Archive */}
+      <section id="magazines" className="scroll-mt-24">
+        <SectionHead
+          kicker="Цахим сан"
+          title="Сэтгүүл, ном, норм дүрмийн архив"
+          action={
+            <label className="relative w-full sm:w-72 block">
+              <span className="sr-only">Хайх</span>
+              <Search className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
               <input
                 type="search"
-                placeholder="Гарчиг, дугаараар хайх..."
+                placeholder="Гарчиг, дугаараар хайх"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white border border-stone-300 rounded-xl text-base sm:text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900 transition-all"
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-7 pr-2 py-2.5 bg-transparent border-0 border-b border-stone-400 focus:border-stone-950 text-base sm:text-sm text-stone-950 placeholder:text-stone-500 focus:outline-none"
               />
-            </div>
-          </div>
+            </label>
+          }
+        />
 
-          {/* Category Tabs: Segmented Control */}
-          <div className="flex overflow-x-auto hide-scrollbar gap-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {visibleCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={(e) => {
-                  setActiveCategory(cat.id);
-                  e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }}
-                className={`px-4 py-2 text-sm font-semibold rounded-full border transition-colors whitespace-nowrap shrink-0 ${
-                  activeCategory === cat.id
-                    ? 'bg-stone-900 border-stone-900 text-white'
-                    : 'bg-white border-stone-300 text-stone-700 hover:border-stone-500'
-                }`}
-              >
-                {cat.label}
-                {loaded && (
-                  <span className={`ml-1.5 tabular-nums ${activeCategory === cat.id ? 'text-stone-300' : 'text-stone-400'}`}>
-                    {cat.id === 'all' ? magazines.length : magazines.filter(mag => mag.category === cat.id).length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Category tabs: text with an ink underline */}
+        <nav className="flex overflow-x-auto hide-scrollbar gap-6 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-stone-200 mb-10">
+          {visibleCategories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={e => {
+                setActiveCategory(cat.id);
+                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              }}
+              className={`shrink-0 whitespace-nowrap py-3 -mb-px border-b-2 text-sm font-semibold transition-colors ${
+                activeCategory === cat.id
+                  ? 'border-stone-950 text-stone-950'
+                  : 'border-transparent text-stone-500 hover:text-stone-950'
+              }`}
+            >
+              {cat.label}
+              {loaded && (
+                <span className="ml-1.5 font-normal text-stone-400 tabular-nums">
+                  {cat.id === 'all' ? magazines.length : magazines.filter(mag => mag.category === cat.id).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
 
-        {/* Magazines Grid */}
         {loaded && filteredMagazines.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl border border-stone-200 p-8 space-y-3">
-            <BookOpen className="w-10 h-10 text-stone-300 mx-auto" />
-            <h3 className="font-serif text-lg font-bold text-stone-800">Хайлт олдсонгүй</h3>
-            <p className="text-xs text-stone-500 max-w-sm mx-auto">
-              Таны хайсан түлхүүр үгэнд тохирох хэвлэл одоогоор олдсонгүй. Өөр үгээр хайх эсвэл ангиллаа өөрчлөөд үзнэ үү.
-            </p>
+          <div className="text-center py-20 space-y-2">
+            <p className="font-serif text-2xl font-bold text-stone-950">Хайлт олдсонгүй</p>
+            <p className="text-stone-500">Өөр үгээр хайх эсвэл ангиллаа өөрчлөөд үзнэ үү.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10">
-            {!loaded && Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="animate-pulse space-y-3">
-                <div className="aspect-[3/4] rounded-xl bg-stone-200"></div>
-                <div className="h-4 w-3/4 rounded bg-stone-200"></div>
-                <div className="h-3 w-1/2 rounded bg-stone-100"></div>
-              </div>
-            ))}
-            {filteredMagazines.slice(0, visibleCount).map((item) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-12 sm:gap-x-8 sm:gap-y-14">
+            {!loaded &&
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="animate-pulse space-y-3">
+                  <div className="aspect-[3/4] bg-stone-200" />
+                  <div className="h-4 w-3/4 bg-stone-200" />
+                  <div className="h-3 w-1/2 bg-stone-100" />
+                </div>
+              ))}
+            {filteredMagazines.slice(0, visibleCount).map(item => (
               <article key={item.id} className="group flex flex-col">
-                <Link
-                  to={item.heyzineLink ? `/read/${item.id}` : `/magazine/${item.id}`}
-                  className="relative aspect-[3/4] bg-stone-100 rounded-xl overflow-hidden block shadow-sm ring-1 ring-stone-200 group-hover:shadow-lg transition-shadow"
-                >
-                  <img
-                    loading="lazy"
+                <Link to={readHref(item)} className="block">
+                  <Cover
                     src={item.coverImage}
                     alt={item.title}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    className="shadow-[0_14px_30px_-16px_rgba(28,25,23,0.45)] transition-shadow group-hover:shadow-[0_24px_40px_-18px_rgba(28,25,23,0.55)]"
                   />
-                  <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/25 to-transparent pointer-events-none"></div>
-                  {item.heyzineLink && (
-                    <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-white/95 px-2 py-1 text-[11px] font-semibold text-stone-900 shadow-sm">
-                      <BookOpen className="w-3 h-3" /> Унших
-                    </span>
-                  )}
                 </Link>
-
-                <div className="pt-3 flex flex-col flex-1">
-                  <h3 className="text-sm sm:text-base font-semibold text-stone-900 leading-snug line-clamp-2 group-hover:text-amber-700 transition-colors">
-                    <Link to={`/magazine/${item.id}`}>{item.title}</Link>
-                  </h3>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {item.publishedDate ? new Date(item.publishedDate).getFullYear() : ''}
-                    {item.pages ? ` · ${item.pages} хуудас` : ''}
-                  </p>
-                  <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-stone-900 tabular-nums">
-                      {(item.priceDigital || 8000).toLocaleString()}₮
-                    </span>
-                    <Link
-                      to={`/magazine/${item.id}`}
-                      className="text-xs sm:text-sm font-semibold text-stone-700 hover:text-stone-950 underline-offset-4 hover:underline"
-                    >
-                      Захиалах
+                <div className="pt-4 flex flex-col flex-1">
+                  <h3 className="font-serif text-base sm:text-lg font-bold text-stone-950 leading-snug line-clamp-2">
+                    <Link to={readHref(item)} className="hover:underline underline-offset-4 decoration-1">
+                      {item.title}
                     </Link>
-                  </div>
+                  </h3>
+                  <p className="mt-1.5 text-sm text-stone-500">
+                    {item.publishedDate ? new Date(item.publishedDate).getFullYear() : ''}
+                    {item.pages ? ` · ${item.pages} х.` : ''}
+                  </p>
+                  <p className="mt-auto pt-3 text-sm font-semibold text-stone-950 flex items-center gap-1.5">
+                    {item.locked ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-amber-700" /> {item.price.toLocaleString()}₮
+                      </>
+                    ) : item.heyzineLink ? (
+                      <>
+                        Унших <ArrowUpRight className="w-3.5 h-3.5" />
+                      </>
+                    ) : (
+                      <>Захиалах</>
+                    )}
+                  </p>
                 </div>
               </article>
             ))}
@@ -326,322 +447,182 @@ export function Home() {
         )}
 
         {filteredMagazines.length > visibleCount && (
-          <div className="text-center mt-10">
-            <button
-              type="button"
-              onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-              className="px-6 py-3 rounded-lg border border-stone-300 text-stone-800 hover:bg-stone-50 text-sm font-semibold transition-colors"
-            >
-              Цааш үзэх ({filteredMagazines.length - visibleCount})
+          <div className="text-center mt-14">
+            <button type="button" onClick={() => setVisibleCount(c => c + pageSize())} className={btnLine}>
+              Цааш үзэх <span className="font-normal opacity-70">({filteredMagazines.length - visibleCount})</span>
             </button>
           </div>
         )}
       </section>
 
-      {/* 4. Architectural Monograph Subscription Tiers */}
-      <section id="subscriptions" className="bg-[#0C121E] text-white rounded-2xl sm:rounded-3xl px-5 py-10 sm:p-14 border border-stone-800 shadow-xl scroll-mt-24">
-        <div className="max-w-3xl mx-auto text-center space-y-4 mb-10 sm:mb-14">
-          <span className="text-xs text-amber-400 font-bold block">
-            Бүтээн байгуулагчдад зориулсан багцууд
-          </span>
-          <h2 className="font-serif text-2xl sm:text-4xl font-bold tracking-tight text-white">
-            Барилга.МН сэтгүүлийн албан ёсны захиалга
-          </h2>
-          <p className="text-stone-400 text-sm leading-relaxed max-w-xl mx-auto font-sans">
-            Сар бүрийн шинэ хэвлэлтийг хамгийн түрүүнд хүлээн авч, цахим архивт бүтэн жилийн турш хязгааргүй нэвтрэх боломж.
-          </p>
-        </div>
+      {/* ─────────────── Subscriptions */}
+      <section id="subscriptions" className="scroll-mt-24">
+        <SectionHead kicker="Захиалга" title="Сэтгүүлээ гэртээ, оффистоо хүлээн ав" />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 items-stretch">
-          {/* Tier 1: Quarterly */}
-          <div className="bg-stone-900/80 rounded-2xl p-8 border border-stone-800 flex flex-col justify-between hover:border-stone-700 transition-all">
-            <div className="space-y-4">
-              <span className="text-xs font-mono uppercase tracking-wider text-stone-400 block">
-                Улирлын багц
-              </span>
-              <h3 className="font-serif text-2xl font-bold text-white">3 Дугаар</h3>
-              <p className="text-xs text-stone-400 leading-relaxed font-sans">
-                Улирлын барилгын төсөл, судалгааны мэдээллүүдийг цаг алдалгүй авах хүсэлтэй мэргэжилтнүүдэд.
-              </p>
-              
-              <div className="pt-4 border-t border-stone-800">
-                <div className="font-mono text-3xl font-extrabold text-white tabular-nums">41,000₮</div>
-                <div className="text-[11px] text-stone-400 mt-1">13,660₮ / нэг дугаар</div>
-              </div>
-
-              <ul className="space-y-2.5 text-xs text-stone-300 pt-4 font-sans">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>3 сарын хэвлэмэл сэтгүүл</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Улаанбаатар хот дотор хүргэлттэй</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Heyzine цахим унших эрх</span>
-                </li>
-              </ul>
-            </div>
-
-            <Link
-              to="/subscribe?plan=quarterly"
-              className="mt-8 w-full block text-center py-3 rounded-xl border border-stone-700 hover:bg-stone-800 text-stone-200 font-semibold text-xs transition-colors"
-            >
-              Улирлын багц сонгох
-            </Link>
-          </div>
-
-          {/* Tier 2: Half-Year (Featured) */}
-          <div className="bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950 rounded-2xl p-8 border-2 border-amber-500 shadow-2xl relative flex flex-col justify-between transform md:-translate-y-2">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-amber-500 text-stone-950 text-xs font-bold py-1 px-3.5 rounded-full shadow">
-              Элбэг сонголт
-            </div>
-
-            <div className="space-y-4">
-              <span className="text-xs font-mono uppercase tracking-wider text-amber-400 block">
-                Хагас жилийн багц
-              </span>
-              <h3 className="font-serif text-2xl font-bold text-white">6 Дугаар</h3>
-              <p className="text-xs text-stone-400 leading-relaxed font-sans">
-                Барилгын бүтээн байгуулалтын идэвхтэй үеийн бүх сарын судалгаа, үнэ ханшийг багтаасан.
-              </p>
-
-              <div className="pt-4 border-t border-stone-800">
-                <div className="font-mono text-3xl font-extrabold text-amber-400 tabular-nums">76,000₮</div>
-                <div className="text-[11px] text-stone-400 mt-1">12,660₮ / нэг дугаар · 15% хэмнэлт</div>
-              </div>
-
-              <ul className="space-y-2.5 text-xs text-stone-200 pt-4 font-sans">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>6 сарын хэвлэмэл сэтгүүл</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Бүх дугаарын цахим архив</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Оффис / гэрийн хаягаар хүргэнэ</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>НӨАТ-ын цахим баримт</span>
-                </li>
-              </ul>
-            </div>
-
-            <Link
-              to="/subscribe?plan=half-year"
-              className="mt-8 w-full block text-center py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs transition-all shadow-md"
-            >
-              Хагас жилээр захиалах
-            </Link>
-          </div>
-
-          {/* Tier 3: Yearly */}
-          <div className="bg-stone-900/80 rounded-2xl p-8 border border-stone-800 flex flex-col justify-between hover:border-stone-700 transition-all">
-            <div className="space-y-4">
-              <span className="text-xs font-mono uppercase tracking-wider text-stone-400 block">
-                Бүтэн жилийн багц
-              </span>
-              <h3 className="font-serif text-2xl font-bold text-white">12 Дугаар</h3>
-              <p className="text-xs text-stone-400 leading-relaxed font-sans">
-                Компани, төслийн оффис, архитектор, инженерүүдийн бүтэн жилийн мэргэжлийн ширээний ном.
-              </p>
-
-              <div className="pt-4 border-t border-stone-800">
-                <div className="font-mono text-3xl font-extrabold text-white tabular-nums">149,000₮</div>
-                <div className="text-[11px] text-stone-400 mt-1">12,410₮ / нэг дугаар · 25% хэмнэлт</div>
-              </div>
-
-              <ul className="space-y-2.5 text-xs text-stone-300 pt-4 font-sans">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>12 сарын бүх шинэ дугаар</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Барилгын үнэ ханшийн жилийн тойм</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Цахим номын сан бүтэн эрх</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Шуурхай шуудангийн хүргэлт</span>
-                </li>
-              </ul>
-            </div>
-
-            <Link
-              to="/subscribe?plan=yearly"
-              className="mt-8 w-full block text-center py-3 rounded-xl border border-stone-700 hover:bg-stone-800 text-stone-200 font-semibold text-xs transition-colors"
-            >
-              Жилийн захиалга хийх
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. About the magazine */}
-      <section id="about" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-        <div className="lg:col-span-7 space-y-5">
-          <span className="text-xs text-amber-600 font-bold block">Бидний тухай</span>
-          <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 text-balance">
-            2010 оноос хойш барилгын салбарын тэргүүлэх хэвлэл
-          </h2>
-          <div className="space-y-4 text-base text-stone-600 leading-relaxed max-w-prose">
-            <p>
-              «Барилга МН» сэтгүүл 2010 оны 3 дугаар сараас олон нийтийн хүртээл болсон бөгөөд байнгын уншигчид,
-              хамтран ажилладаг байгууллага, хэвлэлтийнхээ тоогоор салбартаа тэргүүлдэг.
-            </p>
-            <p>
-              Салбарын төрийн бодлого, мөрдөгдөж буй хууль тогтоомж, норм нормативын мэдээлэл, бүтээн байгуулалтын
-              цаг үеийн мэдээ, мэргэжилтнүүдийн нийтлэл, ярилцлагыг сар бүр хүргэдэг. Мөн салбарын аж ахуйн нэгжүүдийн
-              шинэ бүтээгдэхүүн, техник технологи, бизнес саналыг олон нийтэд таниулж, төрийн болон төрийн бус
-              байгууллага, сургалт судалгааны төвүүдтэй хамтран ажилладаг.
-            </p>
-          </div>
-          <dl className="grid grid-cols-3 gap-4 pt-2">
-            {[
-              { value: '2010', label: 'оноос хойш' },
-              { value: '2,500–3,000', label: 'хувь сар бүр' },
-              { value: loaded ? `${magazines.length}+` : '190+', label: 'цахим хэвлэл' },
-            ].map(stat => (
-              <div key={stat.label} className="border-t-2 border-amber-500 pt-3">
-                <dt className="sr-only">{stat.label}</dt>
-                <dd className="text-lg sm:text-2xl font-bold text-stone-900 tabular-nums leading-tight">{stat.value}</dd>
-                <dd className="text-xs sm:text-sm text-stone-500">{stat.label}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 shadow-sm">
-          <h3 className="font-serif text-lg font-bold text-stone-900 mb-4">Бодлогын зөвлөл</h3>
-          <ul className="divide-y divide-stone-100">
-            {[
-              { name: 'А.Энхтүвшин', role: 'БХБЯ-ны БТГ-ын мэргэжилтэн' },
-              { name: 'Г.Мягмар', role: 'БХҮНТ-ийн УЗ-ийн дарга, гавьяат барилгачин, зөвлөх архитектор' },
-              { name: 'О.Лхагвадорж', role: 'МБМҮХ-ны гүйцэтгэх захирал, зөвлөх инженер' },
-              { name: 'Ж.Дэлгэрсайхан', role: 'СЭЗИС, Санхүүгийн тэнхимийн дэд профессор, эдийн засагч' },
-              { name: 'Б.Мөнхбаяр', role: 'ШУТИС, Барилгын эрчим хүчний хэмнэлтийн төвийн захирал' },
-              { name: 'Д.Сүнжидмаа', role: 'ШУТИС, БАС-ийн дэд профессор, зөвлөх инженер, доктор' },
-              { name: 'Н.Цогтоо', role: 'Зөвлөх архитектор' },
-              { name: 'Б.Батжав', role: '«Монголын ногоон барилгын хүрээлэн» ТББ-ын гүйцэтгэх захирал, архитектор' },
-            ].map(member => (
-              <li key={member.name} className="py-3 first:pt-0 last:pb-0">
-                <p className="text-sm font-semibold text-stone-900">{member.name}</p>
-                <p className="text-sm text-stone-500 leading-snug">{member.role}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      {/* 6. Physical Distribution: Partner Bookstores Network */}
-      <section id="points" className="space-y-8 scroll-mt-24">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 pb-4 border-b border-stone-200">
+        {/* Yearly vs buying every month separately */}
+        <div className="mb-8 sm:mb-10 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-8 bg-[#EDE8DF] px-6 py-6 sm:px-10 sm:py-8">
           <div>
-            <span className="text-xs text-amber-600 font-bold block mb-1">
-              Борлуулалтын төлөөлөгчид
-            </span>
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">
-              Худалдан авах боломжтой цэгүүд
-            </h2>
+            <p className="text-sm text-stone-600">Сар бүр тусад нь авбал</p>
+            <p className="font-serif text-2xl sm:text-3xl font-bold text-stone-500 line-through decoration-2 tabular-nums">
+              {YEARLY.separately.toLocaleString()}₮
+            </p>
+            <p className="text-sm text-stone-600">{SINGLE_ISSUE_PRICE.toLocaleString()}₮ × 12 дугаар</p>
           </div>
-          <p className="text-xs text-stone-500 max-w-sm">
-            Барилга.МН сэтгүүл болон ном товхимлууд Улаанбаатар хотын дараах томоохон сүлжээ дэлгүүрүүдэд худалдаалагдаж байна.
-          </p>
+          <ArrowRight className="hidden md:block w-6 h-6 text-stone-500" />
+          <div>
+            <p className="text-sm text-stone-600">Жилийн захиалгаар</p>
+            <p className="font-serif text-2xl sm:text-3xl font-bold text-stone-950 tabular-nums">
+              {PLAN_PRICES.yearly.price.toLocaleString()}₮
+            </p>
+            <p className="text-sm font-semibold text-emerald-800">
+              {YEARLY.saved.toLocaleString()}₮ хэмнэнэ — {YEARLY.percent}% хямд
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { name: 'Интерном дэлгүүр', loc: 'УБ хот дахь бүх салбарууд', type: 'Албан ёсны сүлжээ' },
-            { name: 'Азхур номын дэлгүүр', loc: 'Бүх салбар дэлгүүрүүд', type: 'Номын сүлжээ' },
-            { name: 'Мишээл барилгын их дэлгүүр', loc: 'Хан-Уул дүүрэг, Мишээл экспо', type: 'Төв салбар' },
-            { name: 'Мажестик номын дэлгүүр', loc: 'Их дэлгүүрийн 6 давхарт', type: 'Төв салбар' },
-            { name: 'Барилга Мега Стор', loc: 'БГД, 3-р хороолол', type: 'Төлөөлөгч' },
-            { name: 'Скай Их Дэлгүүр', loc: 'Сүхбаатар дүүрэг', type: 'Салбар' },
-            { name: 'УИД номын тасаг', loc: 'Чингэлтэй дүүрэг, Энхтайваны өргөн чөлөө', type: 'Салбар' },
-            { name: 'Барилга.МН төв оффис', loc: 'БЗД, 6-р хороо, 21-р сургуулийн баруун талд', type: 'Төв редакц' },
-          ].map((point, index) => (
+        {/* Phones: a swipeable row with the next plan peeking in; desktop: three ruled columns */}
+        <div
+          ref={plansRef}
+          className="flex md:grid md:grid-cols-3 gap-4 md:gap-0 overflow-x-auto md:overflow-visible snap-x snap-mandatory hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 md:border md:border-stone-900"
+        >
+          {PLANS.map((plan, i) => (
             <div
-              key={index}
-              className="bg-white p-5 rounded-xl border border-stone-200/90 shadow-sm hover:border-stone-400 transition-colors"
+              key={plan.id}
+              data-featured={plan.featured || undefined}
+              className={`relative snap-center shrink-0 w-[82%] sm:w-[60%] md:w-auto p-7 sm:p-9 flex flex-col justify-between border md:border-0 ${
+                i > 0 ? 'md:border-l md:border-stone-900' : ''
+              } ${plan.featured ? 'bg-stone-950 text-white border-stone-950' : 'bg-white border-stone-900'}`}
             >
-              <div className="flex items-center justify-between text-[11px] text-stone-400 font-mono mb-2">
-                <span>{point.type}</span>
-                <MapPin className="w-3.5 h-3.5 text-amber-600" />
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className={`text-sm font-semibold ${plan.featured ? 'text-amber-400' : 'text-amber-700'}`}>{plan.name}</p>
+                  {plan.featured && <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-stone-950 bg-amber-400 px-2 py-0.5">Хамгийн хямд</span>}
+                </div>
+                <h3 className="font-serif text-3xl font-bold mt-2">{plan.issues} дугаар</h3>
+                <p className={`mt-3 text-sm leading-relaxed ${plan.featured ? 'text-stone-300' : 'text-stone-600'}`}>{plan.blurb}</p>
+                <div className={`mt-6 pt-6 border-t ${plan.featured ? 'border-stone-700' : 'border-stone-200'}`}>
+                  <p className={`text-sm line-through tabular-nums ${plan.featured ? 'text-stone-500' : 'text-stone-400'}`}>
+                    {planSavings(plan.id).separately.toLocaleString()}₮
+                  </p>
+                  <p className="font-serif text-4xl font-bold tabular-nums">{plan.price.toLocaleString()}₮</p>
+                  <p className={`text-sm mt-1 ${plan.featured ? 'text-stone-400' : 'text-stone-500'}`}>
+                    {planSavings(plan.id).perIssue.toLocaleString()}₮ / нэг дугаар
+                  </p>
+                  <p
+                    className={`mt-3 inline-block text-sm font-semibold px-2 py-1 ${
+                      plan.featured ? 'bg-amber-400 text-stone-950' : 'bg-emerald-50 text-emerald-800'
+                    }`}
+                  >
+                    {planSavings(plan.id).saved.toLocaleString()}₮ хэмнэлт · {planSavings(plan.id).percent}%
+                  </p>
+                </div>
+                <ul className={`mt-6 space-y-2.5 text-sm ${plan.featured ? 'text-stone-200' : 'text-stone-700'}`}>
+                  {plan.features.map(feature => (
+                    <li key={feature} className="flex items-start gap-2.5">
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.featured ? 'text-amber-400' : 'text-amber-700'}`} />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <h4 className="font-serif font-bold text-stone-900 text-sm mb-1">{point.name}</h4>
-              <p className="text-xs text-stone-500 font-sans">{point.loc}</p>
+              <Link
+                to={`/subscribe?plan=${plan.id}`}
+                className={`mt-9 w-full block text-center py-3.5 text-sm font-semibold transition-colors ${
+                  plan.featured
+                    ? 'bg-amber-400 hover:bg-amber-300 text-stone-950'
+                    : 'border border-stone-950 text-stone-950 hover:bg-stone-950 hover:text-white'
+                }`}
+              >
+                {plan.cta}
+              </Link>
             </div>
           ))}
         </div>
+        <p className="md:hidden text-center text-sm text-stone-500 mt-4">← Гүйлгэж бусад багцыг харна уу →</p>
       </section>
 
-      {/* 7. Editorial Colophon & Direct Inquiries */}
-      <section className="bg-stone-100 rounded-2xl sm:rounded-3xl p-6 sm:p-12 border border-stone-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="space-y-2">
-            <span className="text-xs text-stone-400 block font-bold">
-              Редакцийн мэдээлэл
-            </span>
-            <h3 className="font-serif text-xl font-bold text-stone-900">Нийтлэл & Зар сурталчилгаа</h3>
-            <p className="text-xs text-stone-600 leading-relaxed font-sans">
-              Сэтгүүлд нийтлэл өгөх, бүтээгдэхүүн сурталчлах болон албан байгууллагын бөөнөөр захиалах хүсэлтийг хүлээн авч байна.
+      {/* ─────────────── About */}
+      <section id="about" className="scroll-mt-24">
+        <SectionHead kicker="Бидний тухай" title="2010 оноос хойш барилгын салбарын тэргүүлэх хэвлэл" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+          <div className="lg:col-span-7 space-y-5 text-lg text-stone-700 leading-relaxed">
+            <p className="first-letter:font-serif first-letter:text-6xl first-letter:font-bold first-letter:float-left first-letter:leading-[0.85] first-letter:mr-2 first-letter:mt-1 first-letter:text-stone-950">
+              Барилга МН сэтгүүл 2010 оны 3 дугаар сараас олон нийтийн хүртээл болсон бөгөөд байнгын уншигчид,
+              хамтран ажилладаг байгууллага, хэвлэлтийнхээ тоогоор салбартаа тэргүүлдэг.
+            </p>
+            <p>
+              Салбарын төрийн бодлого, мөрдөгдөж буй хууль тогтоомж, норм нормативын мэдээлэл, бүтээн байгуулалтын цаг
+              үеийн мэдээ, мэргэжилтнүүдийн нийтлэл, ярилцлагыг сар бүр хүргэдэг. Мөн салбарын аж ахуйн нэгжүүдийн шинэ
+              бүтээгдэхүүн, техник технологи, бизнес саналыг олон нийтэд таниулж, төрийн болон төрийн бус байгууллага,
+              сургалт судалгааны төвүүдтэй хамтран ажилладаг.
             </p>
           </div>
 
-          <div className="space-y-3">
-            <span className="text-xs text-stone-400 block font-bold">
-              Шууд холбогдох
-            </span>
-            <div className="flex items-center gap-3 text-sm text-stone-700">
-              <Phone className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="font-medium">
-                <a href="tel:+97691000233" className="hover:text-stone-950">9100-0233</a>,{' '}
-                <a href="tel:+97677113333" className="hover:text-stone-950">7711-3333</a>
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-stone-700">
-              <Mail className="w-4 h-4 text-amber-600 shrink-0" />
-              <a href="mailto:magazine@barilga.mn" className="hover:text-stone-950">magazine@barilga.mn</a>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-stone-700">
-              <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
-              <a
-                href="https://www.openstreetmap.org/?mlat=47.914181&mlon=106.930603#map=17/47.914181/106.930603"
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-stone-950 underline-offset-2 hover:underline"
+          <div className="lg:col-span-5">
+            <h3 className="text-sm font-semibold text-amber-700 pb-3 border-b border-stone-900">Бодлогын зөвлөл</h3>
+            <ul className="divide-y divide-stone-200">
+              {BOARD.map((member, i) => (
+                <li key={member.name} className={`py-3.5 ${i >= 3 && !showAllBoard ? 'hidden lg:block' : ''}`}>
+                  <p className="font-serif text-lg font-bold text-stone-950">{member.name}</p>
+                  <p className="text-sm text-stone-500 leading-snug">{member.role}</p>
+                </li>
+              ))}
+            </ul>
+            {!showAllBoard && (
+              <button
+                onClick={() => setShowAllBoard(true)}
+                className="lg:hidden mt-2 w-full py-3 border border-stone-950 text-sm font-semibold text-stone-950"
               >
-                Баянзүрх дүүрэг, 6-р хороо, 21-р сургуулийн баруун талд
-              </a>
-            </div>
+                Бүх 8 гишүүнийг харах
+              </button>
+            )}
           </div>
+        </div>
+      </section>
 
-          <div className="space-y-3 flex flex-col justify-between">
-            <div>
-              <span className="text-xs text-stone-400 block font-bold">
-                Цахим төлбөр ба баримт
-              </span>
-              <p className="text-xs text-stone-600 leading-relaxed font-sans mt-1">
-                QPay, Дансаар шилжүүлэх болон бүх төрлийн картаар төлөх боломжтой. Байгууллагын НӨАТ-ын цахим баримт олгоно.
-              </p>
-            </div>
-            <Link
-              to="/subscribe?plan=yearly"
-              className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-stone-900 text-white font-semibold text-xs hover:bg-stone-800 transition-colors"
+      {/* ─────────────── Where to buy */}
+      <section id="points" className="scroll-mt-24">
+        <SectionHead kicker="Борлуулалтын цэгүүд" title="Хаанаас худалдаж авах вэ" />
+        <ul className="grid grid-cols-2 lg:grid-cols-4 border-t border-l border-stone-200">
+          {SALE_POINTS.map(point => (
+            <li key={point.name} className="border-r border-b border-stone-200 p-4 sm:p-6">
+              <p className="text-xs sm:text-sm text-stone-500">{point.type}</p>
+              <p className="font-serif text-base sm:text-lg font-bold text-stone-950 leading-snug mt-1">{point.name}</p>
+              <p className="text-sm text-stone-600 leading-snug mt-1">{point.loc}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* ─────────────── Contact */}
+      <section id="contact" className="scroll-mt-24">
+        <SectionHead kicker="Холбоо барих" title="Нийтлэл, зар сурталчилгаа, байгууллагын захиалга" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
+          <div>
+            <p className="text-sm text-stone-500">Утас</p>
+            <p className="font-serif text-2xl font-bold text-stone-950 mt-1">
+              <a href="tel:+97691000233" className="inline-block py-1 hover:text-amber-700">9100-0233</a>
+              <br />
+              <a href="tel:+97677113333" className="inline-block py-1 hover:text-amber-700">7711-3333</a>
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-stone-500">Имэйл</p>
+            <p className="font-serif text-2xl font-bold text-stone-950 mt-1 break-all">
+              <a href="mailto:magazine@barilga.mn" className="inline-block py-1 hover:text-amber-700">magazine@barilga.mn</a>
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-stone-500">Редакц</p>
+            <a
+              href="https://www.openstreetmap.org/?mlat=47.914181&mlon=106.930603#map=17/47.914181/106.930603"
+              target="_blank"
+              rel="noreferrer"
+              className="group inline-flex items-start gap-1.5 text-lg text-stone-950 leading-snug mt-1 hover:text-amber-700"
             >
-              <span>Жилийн эрх захиалах</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+              Баянзүрх дүүрэг, 6-р хороо, 21-р сургуулийн баруун талд
+              <ArrowUpRight className="w-4 h-4 mt-1 shrink-0" />
+            </a>
           </div>
         </div>
       </section>

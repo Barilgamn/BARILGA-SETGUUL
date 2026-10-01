@@ -3,8 +3,7 @@ import { MOCK_MAGAZINES } from '../lib/data';
 import { findHeyzineMagazine } from '../lib/heyzine';
 import { Smartphone, BookOpen, ChevronLeft, Check, Sparkles, ShieldCheck, Truck } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { getMagazine } from '../lib/records';
 
 export function MagazineDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,11 +22,8 @@ export function MagazineDetail() {
             setMagazine(heyzineMag);
             return;
           }
-          const docRef = doc(db, 'magazines', id);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            setMagazine({ id: snap.id, ...snap.data() });
-          }
+          const found = await getMagazine(id);
+          if (found) setMagazine(found);
         } catch (e) {
           console.error('Failed to fetch magazine:', e);
         } finally {
@@ -73,7 +69,7 @@ export function MagazineDetail() {
       {/* Back button */}
       <Link 
         to="/" 
-        className="inline-flex items-center py-1 text-sm font-medium text-stone-500 hover:text-stone-900 transition-colors gap-1.5"
+        className="inline-flex items-center py-2 text-sm font-medium text-stone-500 hover:text-stone-900 transition-colors gap-1.5"
       >
         <ChevronLeft className="h-4 w-4" />
         <span>Бүх сэтгүүлүүд рүү буцах</span>
@@ -95,13 +91,13 @@ export function MagazineDetail() {
 
             </div>
 
-            {magazine.heyzineLink && (
+            {(magazine.heyzineLink || magazine.locked) && (
               <Link
-                to={`/read/${magazine.id}`}
+                to={magazine.locked ? `/buy/${magazine.id}` : `/read/${magazine.id}`}
                 className="mt-6 w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-bold text-stone-950 py-3 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 transition-colors"
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Цахимаар унших</span>
+                <span>{magazine.locked ? `Худалдаж аваад унших · ${magazine.price.toLocaleString()}₮` : 'Цахимаар унших'}</span>
               </Link>
             )}
           </div>
@@ -153,7 +149,28 @@ export function MagazineDetail() {
               </div>
             </div>
             
-            {/* Format Selection & Purchase */}
+            {magazine.source === 'heyzine' ? (
+              <div className="space-y-4 pt-6 border-t border-stone-200">
+                {magazine.locked ? (
+                  <>
+                    <div>
+                      <span className="text-sm text-stone-500 block">Цахим хувилбар</span>
+                      <span className="text-3xl font-bold text-stone-900 tabular-nums">{magazine.price.toLocaleString()}₮</span>
+                    </div>
+                    <p className="text-sm text-stone-600">QPay, банкны апп, картаар төлмөгц шууд уншина. Байгууллага нэхэмжлэхээр дансаар төлж болно.</p>
+                    <Link
+                      to={`/buy/${magazine.id}`}
+                      className="block w-full sm:w-auto sm:inline-block text-center px-8 py-3.5 rounded-xl bg-[#0C121E] hover:bg-stone-800 text-white font-bold text-sm transition-colors"
+                    >
+                      Худалдаж авах
+                    </Link>
+                  </>
+                ) : (
+                  <p className="text-sm text-stone-600">Энэ хэвлэлийг цахимаар үнэгүй уншина.</p>
+                )}
+              </div>
+            ) : (
+            // Format Selection & Purchase
             <div className="space-y-6 pt-6 border-t border-stone-200">
               <div>
                 <span className="text-sm font-semibold text-stone-900 block mb-3">
@@ -230,6 +247,7 @@ export function MagazineDetail() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>
