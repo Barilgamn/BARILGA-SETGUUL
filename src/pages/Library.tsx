@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
-import { CATEGORIES, displayTitle, issueNo, useLibrary } from '../lib/library';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Search, X } from 'lucide-react';
+import { CATEGORIES, displayTitle, issueNo, readHref, useLibrary } from '../lib/library';
 import { LibraryCard } from '../components/LibraryCard';
 
 // «Цахим номууд»: the whole library on its own page, with categories and
@@ -123,57 +123,92 @@ export function Library() {
     'Барилгын материал',
     'Дулаалга',
   ];
-  const heroCovers = useMemo(() => {
-    const firstOf = (cat: string) => magazines.find(m => m.category === cat && m.coverImage);
-    return [firstOf('norm'), latestIssue, firstOf('book')].filter(Boolean) as any[];
-  }, [magazines, latestIssue]);
   const typed = useTypewriter(TYPED_EXAMPLES, !query);
+
+  // Live matches under the search box, so results show while typing even
+  // when the full grid is below the fold (or behind a phone keyboard)
+  const [focused, setFocused] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const blurTimer = useRef<ReturnType<typeof setTimeout>>();
+  const navigate = useNavigate();
+  const showResults = () => {
+    setFocused(false);
+    (document.activeElement as HTMLElement | null)?.blur();
+    document.getElementById('library-results')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const live = results.slice(0, 6);
+  const dropdownOpen = focused && query.trim().length > 0 && loaded;
 
   const activeLabel = CATEGORIES.find(c => c.id === category)?.label || 'Бүгд';
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      {/* Title and search */}
-      <header className="-mx-4 sm:-mx-6 lg:-mx-8 -mt-6 sm:-mt-10 bg-stone-950 text-white relative overflow-hidden">
-        {/* faint ruled paper behind the title */}
+      {/* Title and search: a slim band so results stay in view */}
+      <header className="-mx-4 sm:-mx-6 lg:-mx-8 -mt-6 sm:-mt-10 bg-stone-950 text-white relative z-40">
         <div
           aria-hidden="true"
           className="absolute inset-0 opacity-[0.07] pointer-events-none"
-          style={{ backgroundImage: 'repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 44px)' }}
+          style={{ backgroundImage: 'repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 36px)' }}
         />
-        <div className="relative px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          <div className="lg:col-span-7 xl:col-span-7">
-            <p className="text-sm font-semibold text-amber-400">Барилга.МН цахим номын сан</p>
-            <h1 className="font-serif text-[2.75rem] sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.02] mt-3">
-              Цахим номууд
-            </h1>
-            <p className="mt-5 max-w-xl text-base sm:text-lg text-stone-300 leading-relaxed">
-              2010 оноос хойших сэтгүүл, ном товхимол, норм дүрэм, стандарт, судалгаа, зураг төсөл — бүгд нэг дор.
-            </p>
+        <div className="relative px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-10 items-center">
+          <div className="lg:col-span-4">
+            <p className="text-xs sm:text-sm font-semibold text-amber-400">Барилга.МН цахим номын сан</p>
+            <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight leading-tight mt-1">Цахим номууд</h1>
+            {loaded && (
+              <p className="mt-1.5 text-sm text-stone-400 tabular-nums">
+                {magazines.length.toLocaleString()} хэвлэл · {(counts.get('magazine') || 0).toLocaleString()} сэтгүүл ·{' '}
+                {(counts.get('norm') || 0).toLocaleString()} норм дүрэм
+              </p>
+            )}
+          </div>
 
+          <div className="lg:col-span-8">
             <form
               role="search"
               onSubmit={e => {
                 e.preventDefault();
-                (document.activeElement as HTMLElement | null)?.blur();
-                document.getElementById('library-results')?.scrollIntoView({ behavior: 'smooth' });
+                if (highlight >= 0 && live[highlight]) navigate(readHref(live[highlight]));
+                else showResults();
               }}
-              className="mt-8 relative max-w-2xl"
+              className="relative"
             >
               <label htmlFor="library-search" className="sr-only">Цахим номын сангаас хайх</label>
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-500 pointer-events-none" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-500 pointer-events-none" />
               <input
                 id="library-search"
                 type="search"
                 value={query}
-                onChange={e => update('q', e.target.value, '')}
+                onChange={e => {
+                  update('q', e.target.value, '');
+                  setHighlight(-1);
+                }}
+                onFocus={() => {
+                  clearTimeout(blurTimer.current);
+                  setFocused(true);
+                }}
+                onBlur={() => (blurTimer.current = setTimeout(() => setFocused(false), 150))}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlight(h => Math.min(h + 1, live.length - 1));
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlight(h => Math.max(h - 1, -1));
+                  }
+                }}
                 placeholder={typed ? '' : 'Нэр, дугаар, түлхүүр үгээр хайх'}
                 autoComplete="off"
-                className="w-full pl-14 pr-32 sm:pr-36 py-5 bg-white text-stone-950 text-base sm:text-lg placeholder:text-stone-400 border-0 focus:outline-none focus:ring-4 focus:ring-amber-400/40"
+                role="combobox"
+                aria-expanded={dropdownOpen}
+                aria-controls="library-live"
+                className="w-full pl-12 pr-28 sm:pr-32 py-3.5 [&::-webkit-search-cancel-button]:hidden bg-white text-stone-950 text-base placeholder:text-stone-400 border-0 focus:outline-none focus:ring-4 focus:ring-amber-400/40"
               />
               {/* Example searches type themselves out while the box is empty */}
               {!query && typed && (
-                <span aria-hidden="true" className="absolute left-14 top-1/2 -translate-y-1/2 text-base sm:text-lg text-stone-400 pointer-events-none whitespace-nowrap overflow-hidden max-w-[calc(100%-11rem)]">
+                <span aria-hidden="true" className="absolute left-12 top-1/2 -translate-y-1/2 text-base text-stone-400 pointer-events-none whitespace-nowrap overflow-hidden max-w-[calc(100%-10rem)]">
                   {typed}
                   <span className="inline-block w-px h-5 align-middle bg-stone-400 ml-0.5 animate-pulse" />
                 </span>
@@ -183,30 +218,74 @@ export function Library() {
                   type="button"
                   onClick={() => update('q', '', '')}
                   aria-label="Хайлт цэвэрлэх"
-                  className="absolute right-[6.5rem] sm:right-[7.5rem] top-1/2 -translate-y-1/2 p-2 text-stone-400 hover:text-stone-950"
+                  className="absolute right-[5.75rem] sm:right-[6.75rem] top-1/2 -translate-y-1/2 p-2 text-stone-400 hover:text-stone-950"
                 >
                   <X className="w-4 h-4" />
                 </button>
               )}
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-5 sm:px-7 py-3 bg-amber-400 hover:bg-amber-300 text-stone-950 text-sm sm:text-base font-semibold"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-5 sm:px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 text-sm font-semibold"
               >
                 Хайх
               </button>
+
+              {dropdownOpen && (
+                <div
+                  id="library-live"
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full mt-1 bg-white text-stone-950 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] border border-stone-200"
+                >
+                  {live.length === 0 ? (
+                    <p className="px-4 py-5 text-sm text-stone-500">«{query.trim()}» — илэрц олдсонгүй.</p>
+                  ) : (
+                    <>
+                      <ul className="max-h-[60vh] overflow-y-auto divide-y divide-stone-100">
+                        {live.map((item, i) => (
+                          <li key={item.id} role="option" aria-selected={i === highlight}>
+                            <Link
+                              to={readHref(item)}
+                              onMouseEnter={() => setHighlight(i)}
+                              className={`flex items-center gap-3 px-3 py-2.5 ${i === highlight ? 'bg-stone-100' : 'hover:bg-stone-50'}`}
+                            >
+                              <img src={item.coverImage} alt="" referrerPolicy="no-referrer" className="w-9 aspect-[3/4] object-cover bg-stone-200 shrink-0" />
+                              <span className="min-w-0 flex-1">
+                                <span className="text-sm font-semibold leading-snug line-clamp-2">{displayTitle(item)}</span>
+                                <span className="block text-xs text-stone-500 mt-0.5">
+                                  {CATEGORIES.find(c => c.id === item.category)?.label}
+                                  {item.publishedDate ? ` · ${new Date(item.publishedDate).getFullYear()}` : ''}
+                                  {item.locked ? ` · ${item.price.toLocaleString()}₮` : ''}
+                                </span>
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={showResults}
+                        className="w-full flex items-center justify-between px-4 py-3 border-t border-stone-200 text-sm font-semibold hover:bg-stone-50"
+                      >
+                        Бүх {results.length.toLocaleString()} илэрцийг харах <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </form>
 
-            <div className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 flex sm:flex-wrap items-center gap-2 overflow-x-auto hide-scrollbar">
-              <span className="shrink-0 text-sm text-stone-400 mr-1">Түгээмэл:</span>
+            <div className="mt-3 -mx-4 px-4 sm:mx-0 sm:px-0 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+              <span className="shrink-0 text-xs sm:text-sm text-stone-400 mr-0.5">Түгээмэл:</span>
               {suggestions.map(term => (
                 <button
                   key={term}
                   type="button"
                   onClick={() => {
                     update('q', term, '');
-                    document.getElementById('library-results')?.scrollIntoView({ behavior: 'smooth' });
+                    showResults();
                   }}
-                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                  className={`shrink-0 whitespace-nowrap px-3 py-1 rounded-full border text-xs sm:text-sm transition-colors ${
                     query === term
                       ? 'bg-white text-stone-950 border-white'
                       : 'border-white/25 text-stone-200 hover:border-white hover:text-white'
@@ -216,40 +295,6 @@ export function Library() {
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* A fanned stack of covers from the library, with its size */}
-          <div className="hidden lg:block lg:col-span-5">
-            <div className="relative h-[22rem] xl:h-[24rem]">
-              {heroCovers.map((item, i) => (
-                <img
-                  key={item.id}
-                  src={item.coverImage}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="absolute top-1/2 left-1/2 w-44 xl:w-48 aspect-[3/4] object-cover shadow-[0_30px_60px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10"
-                  style={{
-                    transform: `translate(-50%, -50%) translateX(${(i - 1) * 7.5}rem) rotate(${(i - 1) * 7}deg) scale(${i === 1 ? 1.06 : 0.94})`,
-                    zIndex: i === 1 ? 2 : 1,
-                  }}
-                />
-              ))}
-            </div>
-            {loaded && (
-              <dl className="mt-6 grid grid-cols-3 border-t border-white/15 pt-5 text-center">
-                {[
-                  { value: magazines.length, label: 'хэвлэл' },
-                  { value: counts.get('magazine') || 0, label: 'сэтгүүл' },
-                  { value: counts.get('norm') || 0, label: 'норм дүрэм' },
-                ].map(stat => (
-                  <div key={stat.label}>
-                    <dt className="sr-only">{stat.label}</dt>
-                    <dd className="font-serif text-3xl font-bold tabular-nums">{stat.value.toLocaleString()}</dd>
-                    <dd className="text-xs text-stone-400 mt-1">{stat.label}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
           </div>
         </div>
       </header>
