@@ -20,3 +20,18 @@ export async function findHeyzineMagazine(id: string): Promise<Magazine | undefi
   const items = await fetchHeyzineMagazines();
   return items.find(m => m.id === id);
 }
+
+export interface HeyzineLookup {
+  title: string;
+  issueNumber?: string;
+  coverImage: string;
+  pages?: number;
+  category?: string;
+  heyzineLink: string;
+}
+
+// Cover, title and category for a pasted Heyzine flipbook link
+export async function lookupHeyzineLink(url: string): Promise<HeyzineLookup | null> {
+  const res = await fetch(`/api/heyzine/lookup?url=${encodeURIComponent(url.trim())}`);
+  return res.ok ? res.json() : null;
+}

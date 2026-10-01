@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { addMagazine, createManualSubscription, deleteMagazine, listAllSubscriptions, listMagazines, updateMagazine, updateSubscription } from '../lib/records';
 import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
+import { lookupHeyzineLink } from '../lib/heyzine';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuth } from '../contexts/AuthContext';
 import { AdminCatalogOrders } from './admin/CatalogOrders';
@@ -413,18 +414,46 @@ function AdminAddMagazine() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'found' | 'missing'>('idle');
+
+  // Pasting a Heyzine link fills the cover (and title, issue, category if empty)
+  useEffect(() => {
+    if (importMethod !== 'heyzine' || !/^https?:\/\/\S+\.\S+/.test(heyzineLinkInput.trim())) {
+      setLookupState('idle');
+      return;
+    }
+    setLookupState('loading');
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const found = await lookupHeyzineLink(heyzineLinkInput).catch(() => null);
+      if (cancelled) return;
+      if (!found) return setLookupState('missing');
+      setCoverImage(found.coverImage);
+      setTitle(t => t || found.title);
+      setIssueNumber(n => n || found.issueNumber || found.title.match(/№\s?\d+/)?.[0] || '');
+      if (found.category) setCategory(found.category);
+      setLookupState('found');
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [heyzineLinkInput, importMethod]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (importMethod === 'pdf' && !pdfUrl) return setError('PDF URL оруулна уу');
     if (importMethod === 'heyzine' && !heyzineLinkInput) return setError('Heyzine линк оруулна уу');
-    if (importMethod === 'heyzine' && !coverImage) return setError('Бэлэн линк оруулах үед хавтасны зураг (URL) заавал шаардлагатай');
-    
+
     setLoading(true); setError(''); setResult(null);
 
     try {
       let finalHeyzineLink = '';
       let finalCoverImage = coverImage;
+      if (importMethod === 'heyzine' && !finalCoverImage) {
+        finalCoverImage = (await lookupHeyzineLink(heyzineLinkInput).catch(() => null))?.coverImage || '';
+        if (!finalCoverImage) throw new Error('Heyzine-ээс хавтас олдсонгүй. Линкээ шалгах эсвэл зургийн URL оруулна уу.');
+      }
 
       if (importMethod === 'pdf') {
         const { data: session } = await supabase.auth.getSession();
@@ -456,7 +485,7 @@ function AdminAddMagazine() {
       const { createdAt: _createdAt, ...fields } = newMagazine;
       setResult(await addMagazine(fields));
       
-      setTitle(''); setIssueNumber(''); setDescription(''); setCoverImage(''); setPdfUrl(''); setHeyzineLinkInput('');
+      setTitle(''); setIssueNumber(''); setDescription(''); setCoverImage(''); setPdfUrl(''); setHeyzineLinkInput(''); setLookupState('idle');
     } catch (err: any) {
       setError(err.message || 'Алдаа гарлаа.');
     } finally {
@@ -517,7 +546,7 @@ function AdminAddMagazine() {
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-1">Тайлбар</label>
-          <textarea required value={description} onChange={e => setDescription(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" rows={3}></textarea>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Заавал биш" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" rows={3}></textarea>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
@@ -540,12 +569,25 @@ function AdminAddMagazine() {
             ) : (
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Heyzine Линк (Flipbook URL)</label>
-                <input required={importMethod === 'heyzine'} type="url" value={heyzineLinkInput} onChange={e => setHeyzineLinkInput(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
+                <input required={importMethod === 'heyzine'} type="url" value={heyzineLinkInput} onChange={e => setHeyzineLinkInput(e.target.value)} placeholder="https://heyzine.com/flip-book/….html" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
+                <p className="text-xs mt-1.5 text-slate-500">
+                  {lookupState === 'loading' && 'Heyzine-ээс хавтас, гарчгийг татаж байна…'}
+                  {lookupState === 'found' && '✓ Хавтас, гарчгийг Heyzine-ээс авлаа.'}
+                  {lookupState === 'missing' && 'Энэ линкээр Heyzine-ээс мэдээлэл олдсонгүй — хавтасны URL-ийг гараар оруулна уу.'}
+                  {lookupState === 'idle' && 'Линкээ буулгахад хавтасны зураг автоматаар орно.'}
+                </p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Хавтасны зураг (URL) {importMethod === 'heyzine' && <span className="text-red-500">*</span>}</label>
-              <input required={importMethod === 'heyzine'} type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
+            <div className="flex gap-4 items-start">
+              {coverImage && (
+                <img src={coverImage} alt="Хавтас" referrerPolicy="no-referrer" className="w-20 aspect-[3/4] object-cover rounded border border-slate-200 shrink-0" />
+              )}
+              <div className="flex-1">
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Хавтасны зураг (URL) <span className="font-normal text-slate-400">— Heyzine-ээс автоматаар</span>
+                </label>
+                <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
+              </div>
             </div>
           </div>
         </div>
@@ -724,7 +766,20 @@ function AdminMagazines({ onAdd }: { onAdd: () => void }) {
 
                 <div>
                   <label className="text-xs font-bold text-slate-700">Зураг (URL)</label>
-                  <input type="url" value={coverImage} onChange={e=>setCoverImage(e.target.value)} className="w-full px-2 py-1 text-sm border rounded" required />
+                  <input type="url" value={coverImage} onChange={e=>setCoverImage(e.target.value)} className="w-full px-2 py-1 text-sm border rounded" />
+                  {heyzineLink && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const found = await lookupHeyzineLink(heyzineLink).catch(() => null);
+                        if (found?.coverImage) setCoverImage(found.coverImage);
+                        else alert('Heyzine-ээс хавтас олдсонгүй.');
+                      }}
+                      className="mt-1 text-xs font-semibold text-[#0F172A] underline underline-offset-2"
+                    >
+                      Heyzine-ээс хавтас авах
+                    </button>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">

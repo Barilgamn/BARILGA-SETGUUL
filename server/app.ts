@@ -177,6 +177,38 @@ app.get('/api/heyzine/flipbooks', async (_req, res) => {
   }
 });
 
+// Admin helper: given a Heyzine flipbook link, return its title and cover so
+// the "add magazine" form fills itself. Our cached account list has the most
+// detail; links from elsewhere fall back to Heyzine's public oEmbed.
+app.get('/api/heyzine/lookup', async (req, res) => {
+  const url = String(req.query.url || '').trim();
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'url-required' });
+  try {
+    const shortId = url.match(/flip-book\/([0-9a-f]{10})/i)?.[1]?.toLowerCase();
+    if (shortId) {
+      const items = await loadFlipbooks().catch(() => []);
+      const item = items.find((i: any) => String(i.heyzineLink).toLowerCase().includes(shortId));
+      if (item) {
+        return res.json({
+          title: item.title,
+          issueNumber: item.issueNumber !== item.title ? item.issueNumber : '',
+          coverImage: item.coverImage,
+          pages: item.pages,
+          category: item.category,
+          heyzineLink: item.heyzineLink,
+        });
+      }
+    }
+    const oembed = await fetch(`https://heyzine.com/api1/oembed?url=${encodeURIComponent(url)}&format=json`);
+    const data: any = await oembed.json().catch(() => null);
+    if (!oembed.ok || !data?.thumbnail_url) return res.status(404).json({ error: 'not-found' });
+    return res.json({ title: data.title || '', coverImage: data.thumbnail_url, heyzineLink: url });
+  } catch (error: any) {
+    console.error('Heyzine lookup failed:', error.message);
+    return res.status(502).json({ error: 'lookup-failed' });
+  }
+});
+
 
 app.get('/api/read/:id', async (req, res) => {
   try {
