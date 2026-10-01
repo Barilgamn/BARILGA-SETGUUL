@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle2, CreditCard, FileText, Loader2, QrCode, RefreshC
 import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { findHeyzineMagazine } from '../lib/heyzine';
 import { getMagazine } from '../lib/records';
+import { displayTitle } from '../lib/library';
 import {
   checkQPay,
   createPurchase,
@@ -83,7 +84,10 @@ export function Buy() {
     setError('');
     try {
       if (!purchase) {
-        setPurchase(await createPurchase(issue, method, { uid: user.id, phone: displayPhone(user) }));
+        // The title carries the issue number so the invoice and admin list say which issue
+        setPurchase(
+          await createPurchase({ ...issue, title: displayTitle(issue) }, method, { uid: user.id, phone: displayPhone(user) })
+        );
       } else if (purchase.method !== method) {
         await switchPurchaseMethod(purchase.id, method);
         setPurchase({ ...purchase, method });
@@ -108,7 +112,7 @@ export function Buy() {
         />
         <div className="min-w-0 space-y-1">
           <p className="text-sm text-stone-500">Цахим хувилбар</p>
-          <h1 className="font-serif text-xl sm:text-2xl font-bold text-stone-900 leading-tight">{issue.title}</h1>
+          <h1 className="font-serif text-xl sm:text-2xl font-bold text-stone-900 leading-tight">{displayTitle(issue)}</h1>
           <p className="text-2xl font-bold text-stone-900 tabular-nums">{issue.price!.toLocaleString()}₮</p>
         </div>
       </div>
