@@ -1,5 +1,5 @@
 import { TouchEvent, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 // Flip through the first pages of an issue right on its cover.
@@ -18,12 +18,16 @@ let pdfjsPromise: Promise<any> | null = null;
 function loadPdfjs() {
   if (!pdfjsPromise) {
     pdfjsPromise = Promise.all([
-      import('pdfjs-dist'),
-      import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+      // The legacy build also runs on older Safari/iOS, which the modern one
+      // fails on silently
+      import('pdfjs-dist/legacy/build/pdf.mjs'),
+      import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
     ]).then(([pdfjs, worker]) => {
       pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
       return pdfjs;
     });
+    // Let a later click retry after a network hiccup
+    pdfjsPromise.catch(() => (pdfjsPromise = null));
   }
   return pdfjsPromise;
 }
@@ -50,6 +54,8 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
   const [doc, setDoc] = useState<PdfDoc | null>(null);
   const [failed, setFailed] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const touchX = useRef<number | null>(null);
@@ -61,6 +67,7 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
   // Open the PDF on first interaction
   const ensureDoc = async () => {
     if (doc || !pdfUrl) return doc;
+    setOpening(true);
     try {
       const pdfjs = await loadPdfjs();
       const loaded = await pdfjs.getDocument({
@@ -77,6 +84,8 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
       console.error('Page preview failed to open the PDF:', err);
       setFailed(true);
       return null;
+    } finally {
+      setOpening(false);
     }
   };
 
@@ -115,8 +124,9 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
 
   const go = async (delta: number) => {
     const next = Math.max(0, Math.min(lastIndex, index + delta));
-    if (next === index) return;
-    if (next > 0 && !(await ensureDoc())) return;
+    if (next === index || opening) return;
+    // If the pages can't be drawn here, the click still gets the reader there
+    if (next > 0 && !(await ensureDoc())) return navigate(readHref);
     setIndex(next);
   };
 
@@ -143,6 +153,13 @@ export function PagePreview({ coverImage, title, pdfUrl, readHref, className = '
           <Link to={readHref} className="block w-full h-full">
             <img src={coverImage} alt={title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
           </Link>
+        )}
+
+        {opening && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-stone-950/55 text-white text-sm font-semibold">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            Хуудсуудыг ачаалж байна…
+          </div>
         )}
 
         {index > 0 && index < lastIndex && (
