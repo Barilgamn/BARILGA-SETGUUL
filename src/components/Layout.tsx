@@ -20,9 +20,15 @@ export function Layout() {
       window.scrollTo(0, 0);
       return;
     }
-    // The section may render only once its data arrives
-    const timer = setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' }), 300);
-    return () => clearTimeout(timer);
+    // Home sections render once their data arrives, so wait for the target
+    let tries = 0;
+    const timer = setInterval(() => {
+      const target = document.getElementById(location.hash.slice(1));
+      if (!target && ++tries < 40) return;
+      clearInterval(timer);
+      target?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearInterval(timer);
   }, [location.pathname, location.hash]);
 
   // The logo also works on the home page itself: back to the top
@@ -32,8 +38,8 @@ export function Layout() {
   };
 
   const navLinks = [
-    { label: 'Цахим сэтгүүл', path: '/#magazines' },
-    { label: 'Сэтгүүл захиалга', path: '/#subscriptions' },
+    { label: 'Барилга МН сэтгүүл', path: '/#barilga-mn' },
+    { label: 'Цахим номууд', path: '/#magazines' },
     { label: 'Амины орон сууц каталоги', path: '/amini-oron-suuts' },
     { label: 'Холбоо барих', path: '/#contact' },
   ];

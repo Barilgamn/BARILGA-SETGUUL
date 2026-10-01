@@ -308,7 +308,7 @@ export function Home() {
 
       {/* ─────────────── Recent issues */}
       {recentIssues.length > 0 && (
-        <section>
+        <section id="barilga-mn" className="scroll-mt-24">
           <SectionHead
             kicker="Барилга МН сэтгүүл"
             title="Өмнөх дугаарууд"
@@ -376,7 +376,7 @@ export function Home() {
       {/* ─────────────── Archive */}
       <section id="magazines" className="scroll-mt-24">
         <SectionHead
-          kicker="Цахим сан"
+          kicker="Цахим номууд"
           title="Сэтгүүл, ном, норм дүрмийн архив"
           action={
             <label className="relative w-full sm:w-72 block">
