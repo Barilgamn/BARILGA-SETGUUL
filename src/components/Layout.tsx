@@ -32,13 +32,11 @@ export function Layout() {
       <header className="bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-900 sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
-            {/* Zone 1: Single text element Brand Wordmark in display face */}
-            <Link to="/" className="flex items-baseline gap-2 group">
-              <span className="font-serif text-2xl sm:text-[1.75rem] font-bold tracking-tight text-stone-950 group-hover:text-stone-700 transition-colors">
-                BARILGA<span className="text-amber-600">.</span>MN
-              </span>
-              <span className="hidden sm:inline text-sm text-stone-500 border-l border-stone-300 pl-2">
-                сэтгүүл
+            {/* Zone 1: Brand — the Барилга.МН logo and what this site is */}
+            <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group" aria-label="Барилга.МН цахим номын сан — нүүр хуудас">
+              <img src="/images/barilga-mn-logo.svg" alt="Барилга.МН" className="h-7 sm:h-8 lg:h-9 w-auto group-hover:opacity-80 transition-opacity" />
+              <span className="border-l border-stone-300 pl-2.5 sm:pl-3 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.14em] leading-tight text-stone-600">
+                Цахим<br className="sm:hidden" /> номын сан
               </span>
             </Link>
 
@@ -136,8 +134,9 @@ export function Layout() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 pb-12 border-b border-stone-800">
             {/* Column 1: Brand & Colophon */}
             <div className="space-y-4 col-span-2 md:col-span-1">
-              <Link to="/" className="font-serif text-2xl font-bold tracking-tight text-white inline-block">
-                BARILGA<span className="text-amber-500">.</span>MN
+              <Link to="/" className="inline-flex items-center gap-3" aria-label="Барилга.МН цахим номын сан">
+                <img src="/images/barilga-mn-logo-light.svg" alt="Барилга.МН" className="h-8 w-auto" />
+                <span className="border-l border-stone-700 pl-3 text-[11px] font-semibold uppercase tracking-[0.12em] whitespace-nowrap text-stone-400">Цахим номын сан</span>
               </Link>
               <p className="text-xs text-stone-400 leading-relaxed font-sans">
                 Монголын барилга, архитектур, хот төлөвлөлтийн салбарын цогц мэдээлэл, мэргэжлийн хэвлэл ба цахим номын сан.
