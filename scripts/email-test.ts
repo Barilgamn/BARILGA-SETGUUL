@@ -9,7 +9,7 @@ if (!to) {
   process.exit(1);
 }
 if (!emailConfigured()) {
-  console.error('Set MAILJET_API_KEY, MAILJET_SECRET_KEY and EMAIL_FROM in .env first.');
+  console.error('Set EMAIL_FROM and either SMTP_HOST/SMTP_USER/SMTP_PASS or MAILJET_API_KEY/MAILJET_SECRET_KEY in .env first.');
   process.exit(1);
 }
 const result = await sendEmails([

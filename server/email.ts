@@ -1,11 +1,19 @@
-// Outgoing email through Mailjet's Send API v3.1. Needs MAILJET_API_KEY,
-// MAILJET_SECRET_KEY and EMAIL_FROM, e.g. "Барилга.МН <order@barilga.mn>",
-// an address or domain validated under Mailjet's «Senders & Domains».
-// Replies go to the office's order address.
+// Outgoing email. Two providers, picked by what's configured:
+// - SMTP, e.g. the office's Google Workspace mailbox: SMTP_HOST=smtp.gmail.com,
+//   SMTP_PORT=465, SMTP_USER=order@barilga.mn, SMTP_PASS=<app password>
+//   (about 2,000 messages a day per mailbox)
+// - Mailjet's Send API v3.1: MAILJET_API_KEY, MAILJET_SECRET_KEY
+// Both need EMAIL_FROM, e.g. "Барилга.МН <order@barilga.mn>". Replies go to
+// the office's order address.
+import nodemailer from 'nodemailer';
+
 const REPLY_TO = 'order@barilga.mn';
 
+const smtpConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+const mailjetConfigured = () => !!(process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY);
+
 export function emailConfigured(): boolean {
-  return !!(process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY && process.env.EMAIL_FROM);
+  return !!process.env.EMAIL_FROM && (smtpConfigured() || mailjetConfigured());
 }
 
 export interface Email {
@@ -22,9 +30,55 @@ function sender(): { Email: string; Name?: string } {
   return m ? { Name: m[1].trim().replace(/^"|"$/g, '') || undefined, Email: m[2].trim() } : { Email: from };
 }
 
-// Mailjet takes up to 50 messages a call
 export async function sendEmails(emails: Email[]): Promise<{ sent: number; failed: number }> {
-  if (!emailConfigured()) throw new Error('Email is not configured (MAILJET_API_KEY, MAILJET_SECRET_KEY, EMAIL_FROM)');
+  if (!emailConfigured()) throw new Error('Email is not configured (EMAIL_FROM plus SMTP_* or MAILJET_*)');
+  return smtpConfigured() ? sendViaSmtp(emails) : sendViaMailjet(emails);
+}
+
+// One message per recipient (no shared To/Bcc), over a small pool of connections
+async function sendViaSmtp(emails: Email[]): Promise<{ sent: number; failed: number }> {
+  const port = Number(process.env.SMTP_PORT) || 465;
+  const transport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    pool: true,
+    maxConnections: 3,
+  });
+  const from = sender();
+  let sent = 0;
+  let failed = 0;
+  try {
+    for (let i = 0; i < emails.length; i += 3) {
+      const results = await Promise.allSettled(
+        emails.slice(i, i + 3).map(e =>
+          transport.sendMail({
+            from: from.Name ? { name: from.Name, address: from.Email } : from.Email,
+            to: e.to,
+            replyTo: REPLY_TO,
+            subject: e.subject,
+            text: e.text,
+            html: e.html,
+          })
+        )
+      );
+      results.forEach(r => {
+        if (r.status === 'fulfilled') sent++;
+        else {
+          failed++;
+          console.error('SMTP send failed:', (r.reason as Error)?.message);
+        }
+      });
+    }
+  } finally {
+    transport.close();
+  }
+  return { sent, failed };
+}
+
+// Mailjet takes up to 50 messages a call
+async function sendViaMailjet(emails: Email[]): Promise<{ sent: number; failed: number }> {
   const auth = Buffer.from(`${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET_KEY}`).toString('base64');
   const from = sender();
   let sent = 0;
