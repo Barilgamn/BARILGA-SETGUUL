@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { addMagazine, createManualSubscription, deleteMagazine, listAllMagazines, listAllSubscriptions, updateMagazine, updateSubscription } from '../lib/records';
 import { AddressSummary } from '../components/AddressSummary';
-import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink, UserRound } from 'lucide-react';
+import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink, UserRound, BarChart3 } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
 import { lookupHeyzineLink } from '../lib/heyzine';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -11,12 +11,14 @@ import { AdminCatalogOrders } from './admin/CatalogOrders';
 import { AdminDigitalSales } from './admin/DigitalSales';
 import { AdminMagazineOrders } from './admin/MagazineOrders';
 import { AdminUsers } from './admin/Users';
+import { AdminOverview } from './admin/Overview';
 import { NotifyIssueButton } from './admin/NotifyIssue';
 import { SubscriptionOrder } from '../types';
 
-type AdminTab = 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
+type AdminTab = 'overview' | 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
 
 const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = [
+  { id: 'overview', label: 'Тойм', icon: BarChart3 },
   { id: 'digital_sales', label: 'Цахим борлуулалт', icon: CreditCard },
   { id: 'catalog_orders', label: 'Каталогийн захиалга', icon: Package },
   { id: 'orders', label: 'Багц захиалга', icon: ShoppingBag },
@@ -80,7 +82,7 @@ function AdminPanel() {
   // The open tab lives in the URL hash so a refresh or shared link keeps it
   const [activeTab, setActiveTabState] = useState<AdminTab>(() => {
     const fromHash = window.location.hash.slice(1);
-    return isAdminTab(fromHash) ? fromHash : 'digital_sales';
+    return isAdminTab(fromHash) ? fromHash : 'overview';
   });
   const setActiveTab = (tab: AdminTab) => {
     setActiveTabState(tab);
@@ -113,6 +115,7 @@ function AdminPanel() {
 
         {/* Main Content Area */}
         <div className="flex-1 min-w-0">
+          {activeTab === 'overview' && <AdminOverview />}
           {activeTab === 'digital_sales' && <AdminDigitalSales />}
           {activeTab === 'catalog_orders' && <AdminCatalogOrders />}
           {activeTab === 'orders' && <AdminOrders />}

@@ -7,6 +7,7 @@ import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken,
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
 import { otpMessage, sendSms, smsConfigured, verifySupabaseHook } from './sms.js';
 import { registerAccountRoutes } from './account.js';
+import { registerStatsRoutes } from './stats.js';
 import { emailConfigured } from './email.js';
 
 const app = express();
@@ -486,5 +487,6 @@ app.all('/api/qpay/callback', async (req, res) => {
 });
 
 registerAccountRoutes(app, { bearer, appUrl });
+registerStatsRoutes(app, { bearer });
 
 export default app;

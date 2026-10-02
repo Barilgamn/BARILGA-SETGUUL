@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getMagazine } from '../lib/records';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { MOCK_MAGAZINES } from '../lib/data';
 import { findHeyzineMagazine } from '../lib/heyzine';
-import { getReadAccess } from '../lib/purchases';
+import { api, getReadAccess } from '../lib/purchases';
 import { SaveButton } from '../components/SaveButton';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,6 +38,18 @@ export function Reader() {
       cancelled = true;
     };
   }, [magazine, user, authLoading, navigate]);
+
+  // Count one open per issue once it is actually readable (for «Тойм»)
+  const counted = useRef('');
+  useEffect(() => {
+    if (!link || !magazine || counted.current === magazine.id) return;
+    counted.current = magazine.id;
+    api('/api/views', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issueId: magazine.id, title: magazine.title }),
+    }).catch(() => undefined);
+  }, [link, magazine]);
 
   useEffect(() => {
     const fetchMagazine = async () => {
