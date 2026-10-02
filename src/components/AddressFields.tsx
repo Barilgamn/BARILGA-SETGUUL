@@ -155,7 +155,16 @@ function Picker({
   );
 }
 
-export function AddressFields({ value, onChange }: { value: DeliveryAddress; onChange: (a: DeliveryAddress) => void }) {
+export function AddressFields({
+  value,
+  onChange,
+  required = true,
+}: {
+  value: DeliveryAddress;
+  onChange: (a: DeliveryAddress) => void;
+  // Order forms need an address; on the profile it is optional
+  required?: boolean;
+}) {
   const [mapOpen, setMapOpen] = useState(value.lat != null);
   const set = (patch: Partial<DeliveryAddress>) => onChange({ ...value, ...patch });
   const ub = value.region === 'ub';
@@ -242,7 +251,7 @@ export function AddressFields({ value, onChange }: { value: DeliveryAddress; onC
           onChange={e => set({ detail: e.target.value })}
           rows={3}
           maxLength={300}
-          required
+          required={required}
           placeholder={
             value.placeType === 'office'
               ? 'Байгууллагын нэр, байр, давхар, өрөөний дугаар'

@@ -1,5 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
-import { AlertCircle, Bell, Check, ChevronDown, Loader2, Mail, MapPin, Pencil, Phone, User } from 'lucide-react';
+import { AlertCircle, Bell, Check, ChevronDown, Loader2, Mail, MapPin, Pencil, Phone, Plus, User, X } from 'lucide-react';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { fullName, getMyProfile, MyProfile, saveMyProfile, sendEmailVerification, startPhoneChange, verifyPhoneChange } from '../lib/account';
 import { AddressFields } from './AddressFields';
@@ -168,8 +168,15 @@ export function AccountSettings() {
     const email = next.email.trim();
     if (email && !/^\S+@\S+\.\S+$/.test(email)) return setError('И-мэйл хаяг буруу байна.');
     if (next.notifyNewIssue && !email) return setError('Мэдэгдэл авахын тулд и-мэйл хаягаа оруулна уу.');
-    // A half-filled address is dropped rather than saved
-    const address = next.address && addressComplete(next.address) ? next.address : null;
+    // An address that was started must be finished (or removed)
+    if (next.address && !addressComplete(next.address)) {
+      return setError(
+        next.address.region === 'ub'
+          ? 'Хаягийн дүүрэг, хороо, дэлгэрэнгүй хаягийг бөглөнө үү — эсвэл «Хаяг устгах» дарна уу.'
+          : 'Хаягийн аймаг, сум, дэлгэрэнгүй хаягийг бөглөнө үү — эсвэл «Хаяг устгах» дарна уу.'
+      );
+    }
+    const address = next.address;
     const emailChanged = email !== (saved?.email || '').trim();
     // A new address starts unverified (the database clears it too)
     const toSave = { ...next, email, address, emailVerified: emailChanged ? false : next.emailVerified };
@@ -335,13 +342,37 @@ export function AccountSettings() {
             />
           )}
 
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm font-semibold text-stone-800">Хүргэлтийн хаяг</p>
-              <p className="text-xs text-stone-500">Захиалга хийхэд энэ хаяг автоматаар бөглөгдөнө.</p>
+          {/* The address is optional: added on request, removable */}
+          {form.address ? (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-stone-800">Хүргэлтийн хаяг</p>
+                  <p className="text-xs text-stone-500">Захиалга хийхэд энэ хаяг автоматаар бөглөгдөнө.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set({ address: null })}
+                  className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-red-700"
+                >
+                  <X className="w-3.5 h-3.5" /> Хаяг устгах
+                </button>
+              </div>
+              <AddressFields value={form.address} onChange={address => set({ address })} required={false} />
             </div>
-            <AddressFields value={form.address || emptyAddress()} onChange={address => set({ address })} />
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => set({ address: emptyAddress() })}
+              className="w-full flex items-center gap-3 border border-dashed border-stone-300 px-4 py-3.5 text-left hover:border-stone-950 hover:bg-stone-50"
+            >
+              <Plus className="w-5 h-5 text-amber-700 shrink-0" />
+              <span>
+                <span className="block text-sm font-semibold text-stone-950">Хүргэлтийн хаяг нэмэх</span>
+                <span className="block text-xs text-stone-500">Заавал биш — нэмбэл захиалгын маягт автоматаар бөглөгдөнө</span>
+              </span>
+            </button>
+          )}
 
           <label className="flex items-start gap-3 border border-stone-300 p-4 cursor-pointer has-[:checked]:border-stone-950 has-[:checked]:bg-stone-50">
             <input
