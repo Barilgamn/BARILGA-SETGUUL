@@ -5,8 +5,9 @@ import { PDFDocument } from 'pdf-lib';
 import cors from 'cors';
 import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken, userOwnsIssue } from './supabase.js';
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
-import { otpMessage, sendSms, verifySupabaseHook } from './sms.js';
+import { otpMessage, sendSms, smsConfigured, verifySupabaseHook } from './sms.js';
 import { registerAccountRoutes } from './account.js';
+import { emailConfigured } from './email.js';
 
 const app = express();
 
@@ -42,6 +43,12 @@ app.post('/api/auth/send-sms', express.raw({ type: '*/*' }), async (req, res) =>
 });
 
 app.use(express.json());
+
+// Which services are configured (yes/no only, never the values), for
+// checking a deployment from outside
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, database: !!admin, sms: smsConfigured(), email: emailConfigured(), qpaySandbox: QPAY_IS_SANDBOX });
+});
 
 function bearer(req: express.Request): string | null {
   const header = req.headers.authorization || '';
