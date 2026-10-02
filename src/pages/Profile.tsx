@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { listMagazines, listMyOrders, listMySubscriptions } from '../lib/records';
 import { Order } from '../types';
 import { MOCK_MAGAZINES } from '../lib/data';
-import { BookOpen, Package, User, LogOut, ExternalLink, Calendar } from 'lucide-react';
+import { BookOpen, Package, User, LogOut, ExternalLink, Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { MyIssues } from '../components/MyIssues';
 import { SavedIssuesList } from '../components/SavedIssuesList';
@@ -12,7 +12,14 @@ import { AddressSummary } from '../components/AddressSummary';
 import { AccountSettings } from '../components/AccountSettings';
 
 export function Profile() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  // Leave for the home page first, so this page never shows signed out
+  const handleSignOut = async () => {
+    navigate('/', { replace: true });
+    await signOut();
+  };
   const [orders, setOrders] = useState<Order[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,8 +47,14 @@ export function Profile() {
     fetchOrders();
   }, [user]);
 
+  // Arriving here signed out: log in, then come back
+  if (!authLoading && !user) return <Navigate to="/login?redirect=%2Fprofile" replace />;
   if (!user || !profile) {
-    return <div className="text-center py-20">Нэвтэрч орно уу</div>;
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+      </div>
+    );
   }
 
   // Only paid digital orders can be read
@@ -76,7 +89,7 @@ export function Profile() {
         </div>
         
         <button
-          onClick={signOut}
+          onClick={handleSignOut}
           className="flex items-center text-stone-600 hover:text-red-700 hover:bg-stone-50 px-4 py-2 rounded-xl text-xs font-semibold transition-colors border border-stone-200"
         >
           <LogOut className="h-4 w-4 mr-2" />
