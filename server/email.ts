@@ -1,5 +1,7 @@
 // Outgoing email through Resend (https://resend.com). Needs RESEND_API_KEY and
-// EMAIL_FROM, e.g. "Барилга.МН <medee@barilga.mn>" on a domain verified in Resend.
+// EMAIL_FROM, e.g. "Барилга.МН <order@barilga.mn>" on a domain verified in Resend.
+// Replies go to the office's order address.
+const REPLY_TO = 'order@barilga.mn';
 
 export function emailConfigured(): boolean {
   return !!(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
@@ -22,7 +24,7 @@ export async function sendEmails(emails: Email[]): Promise<{ sent: number; faile
     const res = await fetch('https://api.resend.com/emails/batch', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(batch.map(e => ({ from: process.env.EMAIL_FROM, ...e }))),
+      body: JSON.stringify(batch.map(e => ({ from: process.env.EMAIL_FROM, reply_to: REPLY_TO, ...e }))),
     });
     if (res.ok) sent += batch.length;
     else {
