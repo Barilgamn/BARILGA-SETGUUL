@@ -2,12 +2,15 @@
 // live on their profiles row; the login phone changes through our server.
 import { supabase } from './supabase';
 import { api } from './purchases';
+import { DeliveryAddress, emptyAddress } from './places';
 
 export interface MyProfile {
   lastName: string;
   firstName: string;
   email: string;
+  // Email when a new issue is out
   notifyNewIssue: boolean;
+  address: DeliveryAddress | null;
 }
 
 export const fullName = (p: Pick<MyProfile, 'lastName' | 'firstName'> | null | undefined) =>
@@ -21,6 +24,7 @@ export async function getMyProfile(uid: string): Promise<MyProfile> {
     firstName: data?.first_name ?? '',
     email: data?.email ?? '',
     notifyNewIssue: !!data?.notify_new_issue,
+    address: data?.address ? { ...emptyAddress(), ...data.address } : null,
   };
 }
 
@@ -32,6 +36,7 @@ export async function saveMyProfile(uid: string, p: MyProfile): Promise<void> {
       first_name: p.firstName.trim(),
       email: p.email.trim(),
       notify_new_issue: p.notifyNewIssue,
+      address: p.address,
     },
     { onConflict: 'id' }
   );

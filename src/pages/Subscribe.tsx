@@ -72,6 +72,8 @@ export function Subscribe() {
           fullName: f.fullName || fullName(p),
           email: f.email || p.email,
           phone: f.phone || displayPhone(user),
+          // The saved delivery address, unless one was already picked here
+          address: !f.address?.district && p.address ? p.address : f.address,
         }))
       )
       .catch(() => undefined);

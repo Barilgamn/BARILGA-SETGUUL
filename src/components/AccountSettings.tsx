@@ -1,10 +1,14 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
-import { Bell, Check, Loader2, Mail, Pencil, Phone, User } from 'lucide-react';
+import { Bell, Check, ChevronDown, Loader2, Mail, MapPin, Pencil, Phone, User } from 'lucide-react';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { fullName, getMyProfile, MyProfile, saveMyProfile, startPhoneChange, verifyPhoneChange } from '../lib/account';
+import { AddressFields } from './AddressFields';
+import { AddressSummary } from './AddressSummary';
+import { addressColumns, addressComplete, emptyAddress } from '../lib/places';
 
-// «Миний мэдээлэл» on the profile page: name, contact email, the login phone
-// (changed with an SMS code) and whether to get an SMS when a new issue is out.
+// «Миний мэдээлэл» on the profile page, folded until opened: name, contact
+// email, the login phone (changed with an SMS code), a saved delivery address
+// and whether to get an email when a new issue is out.
 
 const input =
   'w-full px-4 py-3 bg-white border border-stone-300 text-base text-stone-950 placeholder:text-stone-400 focus:outline-none focus:border-stone-950 focus:ring-2 focus:ring-stone-950/10';
@@ -87,6 +91,7 @@ function PhoneChange({ onDone }: { onDone: () => void }) {
 
 export function AccountSettings() {
   const { user } = useAuth();
+  const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<MyProfile | null>(null);
   const [form, setForm] = useState<MyProfile | null>(null);
   const [editing, setEditing] = useState(false);
@@ -97,42 +102,46 @@ export function AccountSettings() {
 
   useEffect(() => {
     if (!user) return;
+    const blank: MyProfile = { lastName: '', firstName: '', email: user.email || '', notifyNewIssue: false, address: null };
     getMyProfile(user.id)
       .then(p => {
-        setSaved(p);
-        setForm(p);
-        // A new account starts with its details open
+        const withEmail = { ...p, email: p.email || user.email || '' };
+        setSaved(withEmail);
+        setForm(withEmail);
+        // Nothing filled in yet: open straight into the form
         if (!fullName(p)) setEditing(true);
       })
       .catch(err => {
         console.error('Could not load profile:', err);
-        const blank = { lastName: '', firstName: '', email: '', notifyNewIssue: false };
         setSaved(blank);
         setForm(blank);
+        setEditing(true);
       });
   }, [user]);
 
-  if (!user || !form || !saved) {
-    return (
-      <section className="bg-white border border-stone-200 p-6 flex justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
-      </section>
-    );
-  }
+  if (!user) return null;
 
   const phone = displayPhone(user);
   const set = (patch: Partial<MyProfile>) => setForm(f => ({ ...f!, ...patch }));
+  const summary = saved ? [fullName(saved), saved.email].filter(Boolean).join(' · ') : '';
 
-  const save = async (e?: FormEvent, next: MyProfile = form) => {
+  const save = async (e?: FormEvent, next: MyProfile | null = form) => {
     e?.preventDefault();
-    if (next.email && !/^\S+@\S+\.\S+$/.test(next.email.trim())) return setError('И-мэйл хаяг буруу байна.');
+    if (!next) return;
+    const email = next.email.trim();
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) return setError('И-мэйл хаяг буруу байна.');
+    if (next.notifyNewIssue && !email) return setError('Мэдэгдэл авахын тулд и-мэйл хаягаа оруулна уу.');
+    // A half-filled address is dropped rather than saved
+    const address = next.address && addressComplete(next.address) ? next.address : null;
+    const toSave = { ...next, email, address };
     setSaving(true);
     setError('');
     try {
-      await saveMyProfile(user.id, next);
-      setSaved(next);
-      setForm(next);
+      await saveMyProfile(user.id, toSave);
+      setSaved(toSave);
+      setForm(toSave);
       setEditing(false);
+      setChangingPhone(false);
       setNotice('Хадгаллаа');
       setTimeout(() => setNotice(''), 2500);
     } catch (err) {
@@ -145,65 +154,99 @@ export function AccountSettings() {
 
   return (
     <section className="bg-white border border-stone-200 shadow-sm">
-      <header className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-stone-200">
-        <h2 className="font-serif text-xl font-bold text-stone-950">Миний мэдээлэл</h2>
-        <div className="flex items-center gap-3">
-          {notice && (
-            <span className="text-sm text-emerald-700 font-semibold inline-flex items-center gap-1">
-              <Check className="w-4 h-4" /> {notice}
-            </span>
-          )}
-          {!editing && (
-            <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 px-3 py-2 border border-stone-300 text-sm font-semibold text-stone-800 hover:border-stone-950">
-              <Pencil className="w-4 h-4" /> Засах
-            </button>
-          )}
-        </div>
-      </header>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-4 px-5 sm:px-6 py-4 text-left hover:bg-stone-50"
+      >
+        <span className="w-10 h-10 shrink-0 bg-stone-950 text-amber-400 flex items-center justify-center">
+          <User className="w-5 h-5" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-serif text-lg font-bold text-stone-950">Миний мэдээлэл</span>
+          <span className="block text-sm text-stone-500 truncate">
+            {summary || 'Нэр, и-мэйл, хүргэлтийн хаяг, мэдэгдлээ тохируулах'}
+          </span>
+        </span>
+        {notice && (
+          <span className="hidden sm:inline-flex text-sm text-emerald-700 font-semibold items-center gap-1">
+            <Check className="w-4 h-4" /> {notice}
+          </span>
+        )}
+        <ChevronDown className={`w-5 h-5 text-stone-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
 
-      {!editing ? (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-5 sm:px-6 py-5 text-sm">
-          <div className="flex gap-3">
-            <User className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
-            <div>
-              <dt className="text-stone-500">Овог, нэр</dt>
-              <dd className="font-semibold text-stone-950">{fullName(saved) || '—'}</dd>
+      {open && (!form || !saved) && (
+        <div className="border-t border-stone-200 p-6 flex justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+        </div>
+      )}
+
+      {open && form && saved && !editing && (
+        <div className="border-t border-stone-200 px-5 sm:px-6 py-5 space-y-5">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <div className="flex gap-3">
+              <User className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
+              <div>
+                <dt className="text-stone-500">Овог, нэр</dt>
+                <dd className="font-semibold text-stone-950">{fullName(saved) || '—'}</dd>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <Phone className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
-            <div>
-              <dt className="text-stone-500">Утас (нэвтрэх дугаар)</dt>
-              <dd className="font-semibold text-stone-950 font-mono">{phone || '—'}</dd>
+            <div className="flex gap-3">
+              <Phone className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
+              <div>
+                <dt className="text-stone-500">Утас (нэвтрэх дугаар)</dt>
+                <dd className="font-semibold text-stone-950 font-mono">{phone || '—'}</dd>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <Mail className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
-            <div>
-              <dt className="text-stone-500">И-мэйл</dt>
-              <dd className="font-semibold text-stone-950 break-all">{saved.email || user.email || '—'}</dd>
+            <div className="flex gap-3">
+              <Mail className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
+              <div>
+                <dt className="text-stone-500">И-мэйл</dt>
+                <dd className="font-semibold text-stone-950 break-all">{saved.email || '—'}</dd>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <Bell className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
-            <div>
-              <dt className="text-stone-500">Шинэ дугаарын мэдэгдэл</dt>
-              <dd className="flex items-center gap-3">
-                <span className="font-semibold text-stone-950">{saved.notifyNewIssue ? 'SMS-ээр авна' : 'Авахгүй'}</span>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => save(undefined, { ...saved, notifyNewIssue: !saved.notifyNewIssue })}
-                  className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
-                >
-                  {saved.notifyNewIssue ? 'Унтраах' : 'Асаах'}
-                </button>
-              </dd>
+            <div className="flex gap-3">
+              <Bell className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
+              <div>
+                <dt className="text-stone-500">Шинэ дугаарын мэдэгдэл</dt>
+                <dd className="flex items-center gap-3">
+                  <span className="font-semibold text-stone-950">{saved.notifyNewIssue ? 'И-мэйлээр авна' : 'Авахгүй'}</span>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => save(undefined, { ...saved, notifyNewIssue: !saved.notifyNewIssue })}
+                    className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
+                  >
+                    {saved.notifyNewIssue ? 'Унтраах' : 'Асаах'}
+                  </button>
+                </dd>
+              </div>
             </div>
-          </div>
-        </dl>
-      ) : (
-        <form onSubmit={save} className="px-5 sm:px-6 py-5 space-y-5">
+            <div className="flex gap-3 sm:col-span-2">
+              <MapPin className="w-4 h-4 text-stone-400 mt-0.5 shrink-0" />
+              <div>
+                <dt className="text-stone-500">Хүргэлтийн хаяг</dt>
+                <dd className="text-stone-950">
+                  {saved.address ? <AddressSummary {...addressColumns(saved.address)} /> : '—'}
+                </dd>
+              </div>
+            </div>
+          </dl>
+          {error && <p className="text-sm text-red-700">{error}</p>}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-stone-300 text-sm font-semibold text-stone-800 hover:border-stone-950"
+          >
+            <Pencil className="w-4 h-4" /> Засах
+          </button>
+        </div>
+      )}
+
+      {open && form && saved && editing && (
+        <form onSubmit={save} className="border-t border-stone-200 px-5 sm:px-6 py-5 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Овог">
               <input className={input} value={form.lastName} onChange={e => set({ lastName: e.target.value })} maxLength={60} autoComplete="family-name" placeholder="Бат" />
@@ -237,6 +280,14 @@ export function AccountSettings() {
             />
           )}
 
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-stone-800">Хүргэлтийн хаяг</p>
+              <p className="text-xs text-stone-500">Захиалга хийхэд энэ хаяг автоматаар бөглөгдөнө.</p>
+            </div>
+            <AddressFields value={form.address || emptyAddress()} onChange={address => set({ address })} />
+          </div>
+
           <label className="flex items-start gap-3 border border-stone-300 p-4 cursor-pointer has-[:checked]:border-stone-950 has-[:checked]:bg-stone-50">
             <input
               type="checkbox"
@@ -245,8 +296,8 @@ export function AccountSettings() {
               className="mt-0.5 h-5 w-5 accent-stone-950"
             />
             <span>
-              <span className="block text-sm font-semibold text-stone-950">Шинэ дугаар гармагц SMS-ээр мэдэгдэх</span>
-              <span className="block text-xs text-stone-500 mt-0.5">Барилга МН сэтгүүлийн шинэ дугаар гарах бүрт нэг SMS. Хүссэн үедээ унтраана.</span>
+              <span className="block text-sm font-semibold text-stone-950">Шинэ дугаар гармагц и-мэйлээр мэдэгдэх</span>
+              <span className="block text-xs text-stone-500 mt-0.5">Барилга МН сэтгүүлийн шинэ дугаар гарах бүрт нэг и-мэйл. Хүссэн үедээ унтраана.</span>
             </span>
           </label>
 
@@ -255,20 +306,19 @@ export function AccountSettings() {
             <button type="submit" disabled={saving} className="px-6 py-3 bg-stone-950 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />} Хадгалах
             </button>
-            {fullName(saved) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(saved);
-                  setEditing(false);
-                  setChangingPhone(false);
-                  setError('');
-                }}
-                className="px-5 py-3 border border-stone-300 text-sm font-semibold text-stone-700 hover:border-stone-950"
-              >
-                Болих
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setForm(saved);
+                setEditing(false);
+                setChangingPhone(false);
+                setError('');
+                if (!fullName(saved)) setOpen(false);
+              }}
+              className="px-5 py-3 border border-stone-300 text-sm font-semibold text-stone-700 hover:border-stone-950"
+            >
+              Болих
+            </button>
           </div>
         </form>
       )}

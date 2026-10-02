@@ -8,6 +8,7 @@ import { displayPhone } from '../contexts/AuthContext';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag } from 'lucide-react';
 import { AddressFields } from '../components/AddressFields';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
+import { getMyProfile } from '../lib/account';
 
 export function Checkout() {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +50,14 @@ export function Checkout() {
 
   const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
   const [contactPhone, setContactPhone] = useState(displayPhone(user));
+
+  // Start from the address saved under «Миний мэдээлэл»
+  useEffect(() => {
+    if (!user) return;
+    getMyProfile(user.id)
+      .then(p => p.address && setAddress(a => (a.district ? a : p.address!)))
+      .catch(() => undefined);
+  }, [user]);
   
   const [loading, setLoading] = useState(false);
   

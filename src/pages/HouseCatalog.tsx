@@ -6,6 +6,8 @@ import { CatalogPricing, createCatalogOrder, formatCode, getCatalogPricing, orde
 import { AddressFields } from '../components/AddressFields';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 import { Invoice, transferReference } from '../components/Invoice';
+import { displayPhone, useAuth } from '../contexts/AuthContext';
+import { fullName, getMyProfile } from '../lib/account';
 
 // The 8th edition is print-only (not on Heyzine), so its cover ships with the site
 export const CATALOG_COVER = '/images/amini-oron-suuts-8.jpg';
@@ -145,6 +147,22 @@ function OrderForm() {
     note: '',
   });
   const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
+  const { user } = useAuth();
+
+  // Signed in: start from the details saved under «Миний мэдээлэл»
+  useEffect(() => {
+    if (!user) return;
+    getMyProfile(user.id)
+      .then(p => {
+        setForm(f => ({
+          ...f,
+          fullName: f.fullName || fullName(p),
+          phone: f.phone || displayPhone(user).replace(/^\+976/, ''),
+        }));
+        if (p.address) setAddress(a => (a.district ? a : p.address!));
+      })
+      .catch(() => undefined);
+  }, [user]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [placed, setPlaced] = useState<CatalogOrder | null>(null);

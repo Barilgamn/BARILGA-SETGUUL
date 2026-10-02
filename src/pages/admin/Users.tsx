@@ -60,7 +60,7 @@ export function AdminUsers() {
           <h2 className="text-xl font-bold text-stone-900">Хэрэглэгчид</h2>
           {users && (
             <p className="text-sm text-stone-500 mt-1">
-              Нийт {users.length} · сүүлийн 7 хоногт {activeWeek} нэвтэрсэн · {subscribed} нь шинэ дугаарын SMS авна
+              Нийт {users.length} · сүүлийн 7 хоногт {activeWeek} нэвтэрсэн · {subscribed} нь шинэ дугаарын и-мэйл авна
             </p>
           )}
         </div>
@@ -111,7 +111,7 @@ export function AdminUsers() {
                     <td className="px-4 py-3">
                       <span className="font-semibold text-stone-900">{u.name || <span className="text-stone-400 font-normal">Нэргүй</span>}</span>
                       {u.notify && (
-                        <span title="Шинэ дугаарын SMS авна" className="ml-2 inline-flex align-middle text-amber-600">
+                        <span title="Шинэ дугаарын и-мэйл авна" className="ml-2 inline-flex align-middle text-amber-600">
                           <Bell className="w-3.5 h-3.5" />
                         </span>
                       )}

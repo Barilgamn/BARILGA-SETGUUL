@@ -1,10 +1,11 @@
 // Account routes: changing the login phone (our own SMS code, then the auth
-// record is updated with the service role), new-issue SMS alerts sent by an
+// record is updated with the service role), new-issue email alerts sent by an
 // admin, and the admin's list of users by last sign-in.
 import crypto from 'node:crypto';
 import type express from 'express';
 import { admin, isAdminUser, loadMagazineRows, userIdFromToken } from './supabase.js';
 import { sendSms } from './sms.js';
+import { emailConfigured, newIssueEmail, sendEmails } from './email.js';
 
 type Helpers = {
   bearer: (req: express.Request) => string | null;
@@ -117,10 +118,10 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
     try {
       if (!(await signedInAdmin(req, res))) return;
       const [{ count }, { data: sent }] = await Promise.all([
-        admin!.from('profiles').select('id', { count: 'exact', head: true }).eq('notify_new_issue', true).neq('phone', ''),
+        admin!.from('profiles').select('id', { count: 'exact', head: true }).eq('notify_new_issue', true).neq('email', ''),
         admin!.from('issue_notifications').select('*').eq('issue_id', req.params.id).maybeSingle(),
       ]);
-      return res.json({ subscribers: count || 0, sent: sent || null });
+      return res.json({ subscribers: count || 0, sent: sent || null, emailReady: emailConfigured() });
     } catch (error: any) {
       console.error('Notify preview failed:', error.message);
       return res.status(500).json({ error: 'failed' });
@@ -134,29 +135,27 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
       const mag = (await loadMagazineRows()).find(r => r.id === id);
       if (!mag) return res.status(404).json({ error: 'not-found' });
 
+      if (!emailConfigured()) return res.status(503).json({ error: 'email-not-configured' });
+
       // Claim the issue first, so a double click can't send twice
       const number = String(mag.issue_number || '').match(/\d+/)?.[0];
-      const title = number ? `Barilga MN setguul No.${number}` : 'Barilga MN setguulyn shine dugaar';
+      const title = number ? `Барилга МН сэтгүүл №${number}` : String(mag.title || 'Барилга МН сэтгүүлийн шинэ дугаар');
       const { error: claimError } = await admin!.from('issue_notifications').insert({ issue_id: id, title });
       if (claimError) return res.status(409).json({ error: 'already-sent' });
 
       const { data: people, error } = await admin!
         .from('profiles')
-        .select('phone')
+        .select('email')
         .eq('notify_new_issue', true)
-        .neq('phone', '');
+        .neq('email', '');
       if (error) throw error;
-      const phones = [...new Set((people || []).map(p => p.phone))];
-      const text = `Barilga.MN: ${title} garlaa. Unshih: ${appUrl(req)}/magazine/${id}`;
-
-      let sent = 0;
-      let failed = 0;
-      for (let i = 0; i < phones.length; i += 5) {
-        const batch = await Promise.allSettled(phones.slice(i, i + 5).map(phone => sendSms(phone, text)));
-        batch.forEach(r => (r.status === 'fulfilled' ? sent++ : failed++));
-      }
+      const base = appUrl(req);
+      const emails = [...new Set((people || []).map(p => String(p.email).trim().toLowerCase()))]
+        .filter(e => /^\S+@\S+\.\S+$/.test(e))
+        .map(to => newIssueEmail(to, title, mag.cover_image ? `${base}/api/cover/${id}` : '', `${base}/magazine/${id}`, `${base}/profile`));
+      const { sent, failed } = await sendEmails(emails);
       await admin!.from('issue_notifications').update({ sent_count: sent, sent_at: Date.now() }).eq('issue_id', id);
-      return res.json({ sent, failed, total: phones.length });
+      return res.json({ sent, failed, total: emails.length });
     } catch (error: any) {
       console.error('Notify issue failed:', error.message);
       return res.status(500).json({ error: 'failed' });
