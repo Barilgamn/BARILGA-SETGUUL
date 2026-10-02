@@ -42,7 +42,8 @@ async function sendViaSmtp(emails: Email[]): Promise<{ sent: number; failed: num
     host: process.env.SMTP_HOST,
     port,
     secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    // Google shows App Passwords in groups of four; the spaces aren't part of it
+    auth: { user: process.env.SMTP_USER, pass: String(process.env.SMTP_PASS).replace(/\s+/g, '') },
     pool: true,
     maxConnections: 3,
   });
