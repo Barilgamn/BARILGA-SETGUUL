@@ -4,6 +4,7 @@ import { User, Menu, X, Compass } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { planSavings } from '../lib/plans';
+import { CONTACT_EMAIL } from '../lib/bank';
 
 export function Layout() {
   const { user } = useAuth();
@@ -213,7 +214,7 @@ export function Layout() {
                 Утас: <a href="tel:+97691000233" className="hover:text-white">9100-0233</a>, <a href="tel:+97677113333" className="hover:text-white">7711-3333</a>
               </p>
               <p className="text-xs text-stone-300">
-                Имэйл: <a href="mailto:magazine@barilga.mn" className="hover:text-white">magazine@barilga.mn</a>
+                Имэйл: <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white">{CONTACT_EMAIL}</a>
               </p>
             </div>
           </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Printer } from 'lucide-react';
 import { BankSettings } from '../types';
 import { getBankSettings } from '../lib/purchases';
-import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
+import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
 import { BankDetails } from './BankDetails';
 
 export interface InvoiceProps {
@@ -40,6 +40,7 @@ export function Invoice({ number, date, buyer, items, reference, note }: Invoice
             <p className="font-semibold text-stone-950">Барилга МН сэтгүүл</p>
             <p>Баянзүрх дүүрэг, 6-р хороо</p>
             <p>Утас: {CONTACT_PHONE}</p>
+            <p>{CONTACT_EMAIL}</p>
           </div>
         </div>
 

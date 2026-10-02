@@ -7,6 +7,7 @@ import { SaveButton } from '../components/SaveButton';
 import { PagePreview, previewPdfUrl } from '../components/PagePreview';
 import { ArrowRight, ArrowUpRight, Search, Check } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
+import { CONTACT_EMAIL } from '../lib/bank';
 
 const PLANS = [
   {
@@ -493,7 +494,7 @@ export function Home() {
           <div>
             <p className="text-sm text-stone-500">Имэйл</p>
             <p className="font-serif text-2xl font-bold text-stone-950 mt-1 break-all">
-              <a href="mailto:magazine@barilga.mn" className="inline-block py-1 hover:text-amber-700">magazine@barilga.mn</a>
+              <a href={`mailto:${CONTACT_EMAIL}`} className="inline-block py-1 hover:text-amber-700">{CONTACT_EMAIL}</a>
             </p>
           </div>
           <div>

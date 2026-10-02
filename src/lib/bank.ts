@@ -10,4 +10,5 @@ export const DEFAULT_BANK: BankSettings = {
 };
 
 export const CONTACT_PHONE = '9100-0233';
+export const CONTACT_EMAIL = 'order@barilga.mn';
 export const CONTACT_PHONE_TEL = 'tel:+97691000233';
