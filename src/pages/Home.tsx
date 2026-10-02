@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useRef, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CATALOG_COVER } from './HouseCatalog';
 import { CATEGORIES, displayTitle, issueNo, readHref, useLibrary } from '../lib/library';
-import { Cover } from '../components/LibraryCard';
+import { Cover, LibraryCard } from '../components/LibraryCard';
 import { SaveButton } from '../components/SaveButton';
 import { PagePreview, previewPdfUrl } from '../components/PagePreview';
 import { ArrowRight, ArrowUpRight, Search, Check } from 'lucide-react';
@@ -61,6 +61,10 @@ const SALE_POINTS = [
   { name: 'УИД номын тасаг', loc: 'Чингэлтэй дүүрэг, Энхтайваны өргөн чөлөө', type: 'Салбар' },
   { name: 'Барилга.МН төв оффис', loc: 'БЗД, 6-р хороо, 21-р сургуулийн баруун талд', type: 'Төв редакц' },
 ];
+
+// The home page's library shelf: newest titles, fewer on phones
+const HOME_SHELF = 16;
+const HOME_SHELF_PHONE = 8;
 
 // Editorial section opener: a full-width ink rule, a small kicker and a serif title
 function SectionHead({ kicker, title, action }: { kicker: string; title: string; action?: ReactNode }) {
@@ -255,7 +259,7 @@ export function Home() {
         </div>
       </section>
 
-      {/* ─────────────── Library: a way into «Цахим номууд» */}
+      {/* ─────────────── Library: the newest titles, and the way into «Цахим номууд» */}
       <section id="magazines" className="scroll-mt-24">
         <SectionHead
           kicker="Цахим номууд"
@@ -273,7 +277,7 @@ export function Home() {
             const q = librarySearch.trim();
             navigate(q ? `/tsahim-nomuud?q=${encodeURIComponent(q)}` : '/tsahim-nomuud');
           }}
-          className="relative max-w-2xl mb-8"
+          className="relative max-w-2xl mb-6"
         >
           <label className="sr-only" htmlFor="home-library-search">Цахим номын сангаас хайх</label>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-500" />
@@ -289,24 +293,50 @@ export function Home() {
             Хайх
           </button>
         </form>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-l border-stone-300">
-          {CATEGORIES.filter(cat => cat.id !== 'all').map(cat => {
-            const count = magazines.filter(m => m.category === cat.id).length;
-            return (
-              <Link
-                key={cat.id}
-                to={`/tsahim-nomuud?category=${cat.id}`}
-                className="group border-r border-b border-stone-300 p-5 sm:p-6 hover:bg-stone-950 transition-colors"
-              >
-                <p className="font-serif text-xl font-bold text-stone-950 group-hover:text-white">{cat.label}</p>
-                <p className="mt-6 flex items-center justify-between text-sm text-stone-500 group-hover:text-stone-300">
-                  <span className="tabular-nums">{loaded ? `${count.toLocaleString()} хэвлэл` : '…'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </p>
-              </Link>
-            );
-          })}
+
+        {/* Categories open the library on that shelf */}
+        <nav aria-label="Ангилал" className="flex overflow-x-auto hide-scrollbar gap-2 -mx-4 px-4 sm:mx-0 sm:px-0 mb-10">
+          {CATEGORIES.filter(cat => cat.id !== 'all').map(cat => (
+            <Link
+              key={cat.id}
+              to={`/tsahim-nomuud?category=${cat.id}`}
+              className="shrink-0 whitespace-nowrap px-4 py-2 rounded-full border border-stone-300 bg-white text-sm font-semibold text-stone-700 hover:border-stone-950 hover:text-stone-950"
+            >
+              {cat.label}
+              {loaded && (
+                <span className="ml-1.5 font-normal text-stone-400 tabular-nums">
+                  {magazines.filter(m => m.category === cat.id).length.toLocaleString()}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        {/* 16 newest on wide screens, 8 on phones */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-12 sm:gap-x-8 sm:gap-y-14">
+          {!loaded
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="animate-pulse space-y-3">
+                  <div className="aspect-[3/4] bg-stone-200" />
+                  <div className="h-4 w-3/4 bg-stone-200" />
+                  <div className="h-3 w-1/2 bg-stone-100" />
+                </div>
+              ))
+            : magazines.slice(0, HOME_SHELF).map((item, i) => (
+                <div key={item.id} className={i >= HOME_SHELF_PHONE ? 'hidden md:contents' : 'contents'}>
+                  <LibraryCard item={item} />
+                </div>
+              ))}
         </div>
+
+        {loaded && magazines.length > HOME_SHELF_PHONE && (
+          <div className="text-center mt-14">
+            <Link to="/tsahim-nomuud" className={btnLine}>
+              Цааш үзэх <span className="font-normal opacity-70">({magazines.length.toLocaleString()} хэвлэл)</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* ─────────────── Subscriptions */}
