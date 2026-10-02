@@ -1,9 +1,23 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { BookOpen, CreditCard, Eye, Loader2, LogIn, Package, RefreshCw, ShoppingBag, UserPlus } from 'lucide-react';
+import { Fragment, ReactNode, useEffect, useState } from 'react';
+import { ArrowRight, BookOpen, CreditCard, Eye, Loader2, LogIn, Package, RefreshCw, ShoppingBag, UserPlus } from 'lucide-react';
+import type { AdminTab } from '../Admin';
 import { api } from '../../lib/purchases';
 
 // «Тойм»: the admin's first screen. Who signed in, today's orders, what's
 // paid and what's waiting, revenue and reader opens, with 14-day bars.
+// Every figure opens the place where it can be acted on.
+
+type Go = (tab: AdminTab, filter?: string) => void;
+
+// Each kind of order: its admin tab and the filters for «waiting» and «paid»
+const KINDS = [
+  { key: 'purchases', label: 'Цахим дугаар', tab: 'digital_sales', waiting: 'pending', paid: 'paid' },
+  { key: 'subscriptions', label: 'Сэтгүүлийн багц', tab: 'orders', waiting: 'unpaid', paid: '' },
+  { key: 'catalog', label: '«Амины орон сууц» каталог', tab: 'catalog_orders', waiting: 'new', paid: '' },
+  { key: 'prints', label: 'Хэвлэмэл дугаар', tab: 'magazine_orders', waiting: '', paid: '' },
+] as const;
+
+const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
 interface Counts {
   purchases: number;
@@ -41,28 +55,54 @@ function ago(ms: number): string {
   return `${Math.round(hours / 24)} өдөр`;
 }
 
-function Tile({ icon, label, value, sub, tone = 'ink' }: { icon: ReactNode; label: string; value: ReactNode; sub?: ReactNode; tone?: 'ink' | 'amber' }) {
+function Tile({
+  icon,
+  label,
+  value,
+  sub,
+  tone = 'ink',
+  onClick,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  tone?: 'ink' | 'amber';
+  onClick?: () => void;
+  children?: ReactNode;
+}) {
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-sm text-stone-500">
-        <span className={tone === 'amber' ? 'text-amber-600' : 'text-stone-400'}>{icon}</span>
-        {label}
-      </div>
-      <div className="mt-2 font-serif text-3xl font-bold text-stone-950 tabular-nums">{value}</div>
-      {sub && <div className="mt-1 text-xs text-stone-500">{sub}</div>}
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onClick}
+        className="group w-full h-full text-left bg-white rounded-2xl border border-stone-200 p-4 sm:p-5 hover:border-stone-900 hover:shadow-sm transition-colors"
+      >
+        <div className="flex items-center gap-2 text-sm text-stone-500">
+          <span className={tone === 'amber' ? 'text-amber-600' : 'text-stone-400'}>{icon}</span>
+          <span className="flex-1">{label}</span>
+          <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-stone-900 transition-colors" />
+        </div>
+        <div className="mt-2 font-serif text-3xl font-bold text-stone-950 tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-stone-500">{sub}</div>}
+      </button>
+      {children}
     </div>
   );
 }
 
 // One measure over 14 days: thin bars on a shared baseline, hover for the value
-function DailyBars({ title, data, total }: { title: string; data: { day: number; value: number }[]; total: string }) {
+function DailyBars({ title, data, total, onOpen }: { title: string; data: { day: number; value: number }[]; total: string; onOpen: () => void }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...data.map(d => d.value));
   const shown = hover != null ? data[hover] : data[data.length - 1];
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold text-stone-800">{title}</p>
+        <button type="button" onClick={onOpen} className="inline-flex items-center gap-1 text-sm font-semibold text-stone-800 hover:text-amber-700">
+          {title} <ArrowRight className="w-3.5 h-3.5" />
+        </button>
         <p className="text-xs text-stone-500">{total}</p>
       </div>
       <p className="mt-1 text-xs text-stone-500 h-4">
@@ -91,18 +131,40 @@ function DailyBars({ title, data, total }: { title: string; data: { day: number;
   );
 }
 
-function CountRow({ label, today, waiting, paid }: { label: string; today: number; waiting: number; paid: number }) {
+function CountRow({ label, today, waiting, paid, open, openWaiting, openPaid }: {
+  label: string;
+  today: number;
+  waiting: number;
+  paid: number;
+  open: () => void;
+  openWaiting: () => void;
+  openPaid: () => void;
+}) {
+  const cell = 'w-full text-right tabular-nums hover:underline underline-offset-4';
   return (
     <tr className="border-b border-stone-100 last:border-0">
-      <td className="py-2.5 pr-3 text-stone-800">{label}</td>
-      <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-stone-950">{today || '—'}</td>
-      <td className={`py-2.5 px-3 text-right tabular-nums ${waiting ? 'font-semibold text-amber-700' : 'text-stone-400'}`}>{waiting || '—'}</td>
-      <td className="py-2.5 pl-3 text-right tabular-nums text-stone-700">{paid || '—'}</td>
+      <td className="py-2.5 pr-3">
+        <button type="button" onClick={open} className="text-left text-stone-800 hover:text-amber-700 hover:underline underline-offset-4">
+          {label}
+        </button>
+      </td>
+      <td className="py-2.5 px-3">
+        <button type="button" onClick={open} className={`${cell} font-semibold text-stone-950`}>{today || '—'}</button>
+      </td>
+      <td className="py-2.5 px-3">
+        <button type="button" onClick={openWaiting} className={`${cell} ${waiting ? 'font-semibold text-amber-700' : 'text-stone-400'}`}>
+          {waiting || '—'}
+        </button>
+      </td>
+      <td className="py-2.5 pl-3">
+        <button type="button" onClick={openPaid} className={`${cell} text-stone-700`}>{paid || '—'}</button>
+      </td>
     </tr>
   );
 }
 
-export function AdminOverview() {
+export function AdminOverview({ onNavigate }: { onNavigate: Go }) {
+  const [waitingMenu, setWaitingMenu] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -132,6 +194,13 @@ export function AdminOverview() {
 
   const { users, orders, revenue, views, days } = stats;
   const waitingTotal = sum(orders.waiting);
+  const waitingKinds = KINDS.filter(k => orders.waiting[k.key] > 0);
+  // One kind waiting: go straight there; several: let the admin pick
+  const openWaiting = () => {
+    if (waitingKinds.length === 1) onNavigate(waitingKinds[0].tab, waitingKinds[0].waiting);
+    else if (waitingKinds.length > 1) setWaitingMenu(m => !m);
+    else scrollToId('orders-by-kind');
+  };
 
   return (
     <div className="space-y-6">
@@ -149,37 +218,57 @@ export function AdminOverview() {
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Tile icon={<ShoppingBag className="w-4 h-4" />} label="Өнөөдрийн захиалга" value={sum(orders.today)} sub={`7 хоногт ${sum(orders.week)}`} />
+        <Tile icon={<ShoppingBag className="w-4 h-4" />} label="Өнөөдрийн захиалга" value={sum(orders.today)} sub={`7 хоногт ${sum(orders.week)}`} onClick={() => scrollToId('orders-by-kind')} />
         <Tile
           icon={<CreditCard className="w-4 h-4" />}
           label="Хүлээгдэж буй"
           value={waitingTotal}
           sub="Төлбөр эсвэл баталгаажуулалт хүлээж буй"
           tone={waitingTotal ? 'amber' : 'ink'}
-        />
-        <Tile icon={<CreditCard className="w-4 h-4" />} label="Өнөөдрийн орлого" value={money(revenue.today)} sub={`7 хоног ${money(revenue.week)} · 30 хоног ${money(revenue.month)}`} />
+          onClick={openWaiting}
+        >
+          {waitingMenu && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-stone-300 rounded-xl shadow-lg py-1">
+              {waitingKinds.map(k => (
+                <button
+                  key={k.key}
+                  type="button"
+                  onClick={() => onNavigate(k.tab, k.waiting)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-stone-800 hover:bg-stone-100"
+                >
+                  <span>{k.label}</span>
+                  <span className="inline-flex items-center gap-1 font-semibold text-amber-700 tabular-nums">
+                    {orders.waiting[k.key]} <ArrowRight className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Tile>
+        <Tile icon={<CreditCard className="w-4 h-4" />} label="Өнөөдрийн орлого" value={money(revenue.today)} sub={`7 хоног ${money(revenue.week)} · 30 хоног ${money(revenue.month)}`} onClick={() => scrollToId('orders-by-kind')} />
         <Tile
           icon={<Eye className="w-4 h-4" />}
           label="Өнөөдрийн үзэлт"
           value={views ? views.today : '—'}
           sub={views ? `7 хоногт ${views.week} · 30 хоногт ${views.month}` : 'Migration 0009 ажиллуулсны дараа тоолж эхэлнэ'}
+          onClick={() => scrollToId('top-read')}
         />
-        <Tile icon={<LogIn className="w-4 h-4" />} label="Өнөөдөр нэвтэрсэн" value={users.signedInToday} sub={`7 хоногт ${users.signedInWeek}`} />
-        <Tile icon={<UserPlus className="w-4 h-4" />} label="Шинэ хэрэглэгч" value={users.newToday} sub={`7 хоногт ${users.newWeek} · нийт ${users.total}`} />
-        <Tile icon={<BookOpen className="w-4 h-4" />} label="Худалдсан цахим дугаар" value={orders.paid.purchases} sub={`${orders.waiting.purchases} төлбөр хүлээж буй`} />
-        <Tile icon={<Package className="w-4 h-4" />} label="Каталог (төлсөн)" value={orders.paid.catalog} sub={`${orders.waiting.catalog} шийдвэрлэх`} />
+        <Tile icon={<LogIn className="w-4 h-4" />} label="Өнөөдөр нэвтэрсэн" value={users.signedInToday} sub={`7 хоногт ${users.signedInWeek}`} onClick={() => onNavigate('users')} />
+        <Tile icon={<UserPlus className="w-4 h-4" />} label="Шинэ хэрэглэгч" value={users.newToday} sub={`7 хоногт ${users.newWeek} · нийт ${users.total}`} onClick={() => onNavigate('users')} />
+        <Tile icon={<BookOpen className="w-4 h-4" />} label="Худалдсан цахим дугаар" value={orders.paid.purchases} sub={`${orders.waiting.purchases} төлбөр хүлээж буй`} onClick={() => onNavigate('digital_sales', 'paid')} />
+        <Tile icon={<Package className="w-4 h-4" />} label="Каталог (төлсөн)" value={orders.paid.catalog} sub={`${orders.waiting.catalog} шийдвэрлэх`} onClick={() => onNavigate('catalog_orders')} />
       </div>
 
       {/* 14 days, one chart per measure (different scales never share an axis) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-        <DailyBars title="Захиалга" data={days.map(d => ({ day: d.day, value: d.orders }))} total={`14 хоногт ${days.reduce((n, d) => n + d.orders, 0)}`} />
-        <DailyBars title="Цахим ном үзэлт" data={days.map(d => ({ day: d.day, value: d.views }))} total={`14 хоногт ${days.reduce((n, d) => n + d.views, 0)}`} />
-        <DailyBars title="Нэвтэрсэн хэрэглэгч" data={days.map(d => ({ day: d.day, value: d.signIns }))} total="өдөр бүрийн сүүлчийн нэвтрэлт" />
+        <DailyBars title="Захиалга" data={days.map(d => ({ day: d.day, value: d.orders }))} total={`14 хоногт ${days.reduce((n, d) => n + d.orders, 0)}`} onOpen={() => scrollToId('orders-by-kind')} />
+        <DailyBars title="Цахим ном үзэлт" data={days.map(d => ({ day: d.day, value: d.views }))} total={`14 хоногт ${days.reduce((n, d) => n + d.views, 0)}`} onOpen={() => scrollToId('top-read')} />
+        <DailyBars title="Нэвтэрсэн хэрэглэгч" data={days.map(d => ({ day: d.day, value: d.signIns }))} total="өдөр бүрийн сүүлчийн нэвтрэлт" onOpen={() => onNavigate('users')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Orders by kind */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
+        <div id="orders-by-kind" className="scroll-mt-6 bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
           <p className="text-sm font-semibold text-stone-800 mb-2">Захиалга төрлөөр</p>
           <table className="w-full text-sm">
             <thead>
@@ -191,16 +280,25 @@ export function AdminOverview() {
               </tr>
             </thead>
             <tbody>
-              <CountRow label="Цахим дугаар" today={orders.today.purchases} waiting={orders.waiting.purchases} paid={orders.paid.purchases} />
-              <CountRow label="Сэтгүүлийн багц" today={orders.today.subscriptions} waiting={orders.waiting.subscriptions} paid={orders.paid.subscriptions} />
-              <CountRow label="«Амины орон сууц» каталог" today={orders.today.catalog} waiting={orders.waiting.catalog} paid={orders.paid.catalog} />
-              <CountRow label="Хэвлэмэл дугаар" today={orders.today.prints} waiting={orders.waiting.prints} paid={orders.paid.prints} />
+              {KINDS.map(k => (
+                <Fragment key={k.key}>
+                <CountRow
+                  label={k.label}
+                  today={orders.today[k.key]}
+                  waiting={orders.waiting[k.key]}
+                  paid={orders.paid[k.key]}
+                  open={() => onNavigate(k.tab)}
+                  openWaiting={() => onNavigate(k.tab, k.waiting)}
+                  openPaid={() => onNavigate(k.tab, k.paid)}
+                />
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
 
         {/* Most-read issues */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
+        <div id="top-read" className="scroll-mt-6 bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
           <p className="text-sm font-semibold text-stone-800 mb-2">Их уншсан (30 хоног)</p>
           {!views ? (
             <p className="text-sm text-stone-500 py-4">Migration 0009 ажиллуулсны дараа үзэлт тоолж эхэлнэ.</p>
@@ -226,7 +324,12 @@ export function AdminOverview() {
 
         {/* Recent sign-ins */}
         <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
-          <p className="text-sm font-semibold text-stone-800 mb-2">Сүүлд нэвтэрсэн</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-stone-800">Сүүлд нэвтэрсэн</p>
+            <button type="button" onClick={() => onNavigate('users')} className="inline-flex items-center gap-1 text-xs font-semibold text-stone-600 hover:text-amber-700">
+              Бүх хэрэглэгч <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <ul className="divide-y divide-stone-100">
             {users.recent.map((u, i) => (
               <li key={i} className="py-2.5 flex items-center justify-between gap-3 text-sm">
@@ -245,7 +348,12 @@ export function AdminOverview() {
 
         {/* Recent digital purchases */}
         <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5">
-          <p className="text-sm font-semibold text-stone-800 mb-2">Сүүлийн цахим худалдан авалт</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-stone-800">Сүүлийн цахим худалдан авалт</p>
+            <button type="button" onClick={() => onNavigate('digital_sales', 'all')} className="inline-flex items-center gap-1 text-xs font-semibold text-stone-600 hover:text-amber-700">
+              Бүгд <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
           {stats.recentPurchases.length === 0 ? (
             <p className="text-sm text-stone-500 py-4">Одоогоор худалдан авалт алга.</p>
           ) : (

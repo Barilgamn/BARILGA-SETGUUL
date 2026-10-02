@@ -15,7 +15,7 @@ import {
 
 type Section = 'purchases' | 'prices' | 'bank';
 
-export function AdminDigitalSales() {
+export function AdminDigitalSales({ initialFilter = '' }: { initialFilter?: string }) {
   const [section, setSection] = useState<Section>('purchases');
 
   return (
@@ -43,17 +43,19 @@ export function AdminDigitalSales() {
         ))}
       </div>
 
-      {section === 'purchases' && <PurchasesSection />}
+      {section === 'purchases' && <PurchasesSection initialFilter={initialFilter} />}
       {section === 'prices' && <PricesSection />}
       {section === 'bank' && <BankSection />}
     </div>
   );
 }
 
-function PurchasesSection() {
+function PurchasesSection({ initialFilter = '' }: { initialFilter?: string }) {
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<PurchaseStatus | 'all'>('pending');
+  const [filter, setFilter] = useState<PurchaseStatus | 'all'>(
+    ['pending', 'paid', 'cancelled', 'all'].includes(initialFilter) ? (initialFilter as PurchaseStatus | 'all') : 'pending'
+  );
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 

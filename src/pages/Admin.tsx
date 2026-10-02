@@ -15,7 +15,7 @@ import { AdminOverview } from './admin/Overview';
 import { NotifyIssueButton } from './admin/NotifyIssue';
 import { SubscriptionOrder } from '../types';
 
-type AdminTab = 'overview' | 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
+export type AdminTab = 'overview' | 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
 
 const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = [
   { id: 'overview', label: 'Тойм', icon: BarChart3 },
@@ -79,15 +79,20 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 const isAdminTab = (value: string): value is AdminTab => ADMIN_TABS.some(t => t.id === value);
 
 function AdminPanel() {
-  // The open tab lives in the URL hash so a refresh or shared link keeps it
-  const [activeTab, setActiveTabState] = useState<AdminTab>(() => {
-    const fromHash = window.location.hash.slice(1);
-    return isAdminTab(fromHash) ? fromHash : 'overview';
-  });
-  const setActiveTab = (tab: AdminTab) => {
-    setActiveTabState(tab);
-    window.history.replaceState(null, '', `#${tab}`);
+  // The open tab (and an optional filter, «#digital_sales:pending») lives in
+  // the URL hash so a refresh or shared link keeps it
+  const readHash = () => {
+    const [tab, filter = ''] = window.location.hash.slice(1).split(':');
+    return { tab: isAdminTab(tab) ? tab : ('overview' as AdminTab), filter };
   };
+  const [route, setRoute] = useState(readHash);
+  const activeTab = route.tab;
+  const goTo = (tab: AdminTab, filter = '') => {
+    setRoute({ tab, filter });
+    window.history.replaceState(null, '', `#${tab}${filter ? `:${filter}` : ''}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const setActiveTab = (tab: AdminTab) => goTo(tab);
 
   return (
     <div>
@@ -114,11 +119,12 @@ function AdminPanel() {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 min-w-0">
-          {activeTab === 'overview' && <AdminOverview />}
-          {activeTab === 'digital_sales' && <AdminDigitalSales />}
-          {activeTab === 'catalog_orders' && <AdminCatalogOrders />}
-          {activeTab === 'orders' && <AdminOrders />}
+        {/* Keyed by the route so a new filter from «Тойм» starts the tab fresh */}
+        <div key={`${route.tab}:${route.filter}`} className="flex-1 min-w-0">
+          {activeTab === 'overview' && <AdminOverview onNavigate={goTo} />}
+          {activeTab === 'digital_sales' && <AdminDigitalSales initialFilter={route.filter} />}
+          {activeTab === 'catalog_orders' && <AdminCatalogOrders initialFilter={route.filter} />}
+          {activeTab === 'orders' && <AdminOrders initialFilter={route.filter} />}
           {activeTab === 'magazine_orders' && <AdminMagazineOrders />}
           {activeTab === 'magazines' && <AdminMagazines onAdd={() => setActiveTab('add_magazine')} />}
           {activeTab === 'add_magazine' && <AdminAddMagazine />}
@@ -130,11 +136,12 @@ function AdminPanel() {
   );
 }
 
-function AdminOrders() {
+function AdminOrders({ initialFilter = '' }: { initialFilter?: string }) {
   const [orders, setOrders] = useState<SubscriptionOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // all, pending, delivering, delivered
+  // all, unpaid, pending, delivering, delivered, expiring
+  const [filterStatus, setFilterStatus] = useState(initialFilter || 'all');
 
   useEffect(() => {
     fetchOrders();
@@ -202,6 +209,8 @@ function AdminOrders() {
         const thirtyDays = 30 * 24 * 60 * 60 * 1000;
         // End date exists and is within the next 30 days or already expired
         matchStatus = o.endDate ? (o.endDate - now <= thirtyDays) : false;
+      } else if (filterStatus === 'unpaid') {
+        matchStatus = o.paymentStatus === 'pending';
       } else {
         matchStatus = o.deliveryStatus === filterStatus;
       }
@@ -233,6 +242,7 @@ function AdminOrders() {
             className="px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F172A] bg-white"
           >
             <option value="all">Бүх төлөв</option>
+            <option value="unpaid">Төлбөр хүлээж буй</option>
             <option value="pending">Хүлээгдэж буй</option>
             <option value="delivering">Хүргэлтэнд</option>
             <option value="delivered">Хүргэгдсэн</option>

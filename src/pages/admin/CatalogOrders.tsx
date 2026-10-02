@@ -17,10 +17,12 @@ import {
 
 const STATUSES = Object.keys(STATUS_LABELS) as CatalogOrderStatus[];
 
-export function AdminCatalogOrders() {
+export function AdminCatalogOrders({ initialFilter = '' }: { initialFilter?: string }) {
   const [orders, setOrders] = useState<CatalogOrder[] | null>(null);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<CatalogOrderStatus | 'all'>('all');
+  const [filter, setFilter] = useState<CatalogOrderStatus | 'all'>(
+    initialFilter && (initialFilter === 'all' || initialFilter in STATUS_LABELS) ? (initialFilter as CatalogOrderStatus | 'all') : 'all'
+  );
   const [search, setSearch] = useState('');
   const [openCode, setOpenCode] = useState<string | null>(null);
 
