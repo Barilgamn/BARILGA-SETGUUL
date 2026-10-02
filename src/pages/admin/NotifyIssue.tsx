@@ -23,7 +23,7 @@ export function NotifyIssueButton({ issueId, title }: { issueId: string; title: 
   }
 
   if (!state.emailReady) {
-    return <p className="mt-2 text-xs text-stone-500">И-мэйл илгээх тохиргоо хийгдээгүй (Resend)</p>;
+    return <p className="mt-2 text-xs text-stone-500">И-мэйл илгээх тохиргоо хийгдээгүй (Mailjet)</p>;
   }
 
   const send = async () => {

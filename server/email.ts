@@ -1,10 +1,11 @@
-// Outgoing email through Resend (https://resend.com). Needs RESEND_API_KEY and
-// EMAIL_FROM, e.g. "Барилга.МН <order@barilga.mn>" on a domain verified in Resend.
+// Outgoing email through Mailjet's Send API v3.1. Needs MAILJET_API_KEY,
+// MAILJET_SECRET_KEY and EMAIL_FROM, e.g. "Барилга.МН <order@barilga.mn>",
+// an address or domain validated under Mailjet's «Senders & Domains».
 // Replies go to the office's order address.
 const REPLY_TO = 'order@barilga.mn';
 
 export function emailConfigured(): boolean {
-  return !!(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return !!(process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY && process.env.EMAIL_FROM);
 }
 
 export interface Email {
@@ -14,23 +15,43 @@ export interface Email {
   text: string;
 }
 
-// Resend's batch endpoint takes up to 100 messages a call
+// "Барилга.МН <order@barilga.mn>" → name and address
+function sender(): { Email: string; Name?: string } {
+  const from = String(process.env.EMAIL_FROM || '').trim();
+  const m = from.match(/^(.*)<([^>]+)>$/);
+  return m ? { Name: m[1].trim().replace(/^"|"$/g, '') || undefined, Email: m[2].trim() } : { Email: from };
+}
+
+// Mailjet takes up to 50 messages a call
 export async function sendEmails(emails: Email[]): Promise<{ sent: number; failed: number }> {
-  if (!emailConfigured()) throw new Error('Email is not configured (RESEND_API_KEY, EMAIL_FROM)');
+  if (!emailConfigured()) throw new Error('Email is not configured (MAILJET_API_KEY, MAILJET_SECRET_KEY, EMAIL_FROM)');
+  const auth = Buffer.from(`${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET_KEY}`).toString('base64');
+  const from = sender();
   let sent = 0;
   let failed = 0;
-  for (let i = 0; i < emails.length; i += 100) {
-    const batch = emails.slice(i, i + 100);
-    const res = await fetch('https://api.resend.com/emails/batch', {
+  for (let i = 0; i < emails.length; i += 50) {
+    const batch = emails.slice(i, i + 50);
+    const res = await fetch('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(batch.map(e => ({ from: process.env.EMAIL_FROM, reply_to: REPLY_TO, ...e }))),
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        Messages: batch.map(e => ({
+          From: from,
+          To: [{ Email: e.to }],
+          ReplyTo: { Email: REPLY_TO },
+          Subject: e.subject,
+          TextPart: e.text,
+          HTMLPart: e.html,
+        })),
+      }),
     });
-    if (res.ok) sent += batch.length;
-    else {
-      failed += batch.length;
-      console.error('Resend batch failed:', res.status, await res.text().catch(() => ''));
-    }
+    const body: any = await res.json().catch(() => null);
+    // Each message reports its own Status, so one bad address doesn't sink the rest
+    const statuses: string[] = Array.isArray(body?.Messages) ? body.Messages.map((m: any) => m.Status) : [];
+    const ok = statuses.filter(s => s === 'success').length;
+    sent += ok;
+    failed += batch.length - ok;
+    if (ok < batch.length) console.error('Mailjet send problems:', res.status, JSON.stringify(body?.Messages?.filter((m: any) => m.Status !== 'success') ?? body).slice(0, 2000));
   }
   return { sent, failed };
 }
