@@ -6,6 +6,7 @@ import cors from 'cors';
 import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken, userOwnsIssue } from './supabase.js';
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
 import { otpMessage, sendSms, verifySupabaseHook } from './sms.js';
+import { registerAccountRoutes } from './account.js';
 
 const app = express();
 
@@ -476,5 +477,7 @@ app.all('/api/qpay/callback', async (req, res) => {
   }
   res.status(200).send('SUCCESS');
 });
+
+registerAccountRoutes(app, { bearer, appUrl });
 
 export default app;

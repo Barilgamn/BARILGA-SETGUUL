@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { MyIssues } from '../components/MyIssues';
 import { SavedIssuesList } from '../components/SavedIssuesList';
 import { AddressSummary } from '../components/AddressSummary';
+import { AccountSettings } from '../components/AccountSettings';
 
 export function Profile() {
   const { user, profile, signOut } = useAuth();
@@ -83,7 +84,9 @@ export function Profile() {
         </button>
       </div>
 
-      
+
+      <AccountSettings />
+
       <SavedIssuesList />
 
       <MyIssues uid={user.id} />

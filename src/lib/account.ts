@@ -1,0 +1,56 @@
+// The signed-in user's own details: name, contact email and new-issue alerts
+// live on their profiles row; the login phone changes through our server.
+import { supabase } from './supabase';
+import { api } from './purchases';
+
+export interface MyProfile {
+  lastName: string;
+  firstName: string;
+  email: string;
+  notifyNewIssue: boolean;
+}
+
+export const fullName = (p: Pick<MyProfile, 'lastName' | 'firstName'> | null | undefined) =>
+  [p?.lastName, p?.firstName].filter(Boolean).join(' ');
+
+export async function getMyProfile(uid: string): Promise<MyProfile> {
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+  if (error) throw error;
+  return {
+    lastName: data?.last_name ?? '',
+    firstName: data?.first_name ?? '',
+    email: data?.email ?? '',
+    notifyNewIssue: !!data?.notify_new_issue,
+  };
+}
+
+export async function saveMyProfile(uid: string, p: MyProfile): Promise<void> {
+  const { error } = await supabase.from('profiles').upsert(
+    {
+      id: uid,
+      last_name: p.lastName.trim(),
+      first_name: p.firstName.trim(),
+      email: p.email.trim(),
+      notify_new_issue: p.notifyNewIssue,
+    },
+    { onConflict: 'id' }
+  );
+  if (error) throw error;
+}
+
+const json = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+export async function startPhoneChange(phone: string) {
+  return api('/api/account/phone/start', json({ phone }));
+}
+
+export async function verifyPhoneChange(code: string) {
+  const result = await api('/api/account/phone/verify', json({ code }));
+  // The session still carries the old number until it is refreshed
+  if (result.status === 200) await supabase.auth.refreshSession();
+  return result;
+}

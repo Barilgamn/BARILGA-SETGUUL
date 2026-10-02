@@ -9,6 +9,7 @@ import { PLAN_PRICES, PlanId, planSavings } from '../lib/plans';
 import { BankSettings } from '../types';
 import { BankDetails } from '../components/BankDetails';
 import { AddressFields } from '../components/AddressFields';
+import { fullName, getMyProfile } from '../lib/account';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 import { BookOpen, MapPin, CreditCard, CheckCircle, ChevronRight, Loader2, FileText } from 'lucide-react';
 
@@ -60,6 +61,21 @@ export function Subscribe() {
     paymentMethod: 'invoice',
     };
   });
+
+  // Fill in the name and email saved under «Миний мэдээлэл»
+  useEffect(() => {
+    if (!user) return;
+    getMyProfile(user.id)
+      .then(p =>
+        setFormData((f: typeof formData) => ({
+          ...f,
+          fullName: f.fullName || fullName(p),
+          email: f.email || p.email,
+          phone: f.phone || displayPhone(user),
+        }))
+      )
+      .catch(() => undefined);
+  }, [user]);
 
   // Came back from login with a draft: go straight to the confirm step
   useEffect(() => {

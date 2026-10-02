@@ -5,6 +5,7 @@ import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { findHeyzineMagazine } from '../lib/heyzine';
 import { getMagazine } from '../lib/records';
 import { displayTitle } from '../lib/library';
+import { fullName, getMyProfile } from '../lib/account';
 import {
   checkQPay,
   createPurchase,
@@ -312,12 +313,17 @@ function QPayPanel({ purchase }: { purchase: Purchase }) {
 }
 
 function InvoicePanel({ purchase }: { purchase: Purchase }) {
-  const phone = transferReference(undefined, purchase.phone);
+  const { user } = useAuth();
+  const [name, setName] = useState('');
+  useEffect(() => {
+    if (user) getMyProfile(user.id).then(p => setName(fullName(p))).catch(() => undefined);
+  }, [user]);
+  const phone = transferReference(name || undefined, purchase.phone);
   return (
     <Invoice
       number={formatCode(purchase.id)}
       date={purchase.createdAt}
-      buyer={{ phone: purchase.phone }}
+      buyer={{ name, phone: purchase.phone }}
       items={[{ label: `${purchase.issueTitle} — цахим хувилбар`, amount: purchase.amount }]}
       // The invoice number lets the admin find this purchase from the bank statement
       reference={`${purchase.id} ${phone}`}

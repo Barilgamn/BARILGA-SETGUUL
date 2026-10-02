@@ -63,7 +63,7 @@ export async function setBankSettings(settings: BankSettings): Promise<void> {
 }
 
 // --- Buyer side
-async function api(path: string, init: RequestInit = {}) {
+export async function api(path: string, init: RequestInit = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const res = await fetch(path, {

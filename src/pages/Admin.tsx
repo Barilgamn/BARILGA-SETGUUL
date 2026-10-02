@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { addMagazine, createManualSubscription, deleteMagazine, listAllMagazines, listAllSubscriptions, updateMagazine, updateSubscription } from '../lib/records';
 import { AddressSummary } from '../components/AddressSummary';
-import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink } from 'lucide-react';
+import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink, UserRound } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
 import { lookupHeyzineLink } from '../lib/heyzine';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -10,9 +10,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { AdminCatalogOrders } from './admin/CatalogOrders';
 import { AdminDigitalSales } from './admin/DigitalSales';
 import { AdminMagazineOrders } from './admin/MagazineOrders';
+import { AdminUsers } from './admin/Users';
+import { NotifyIssueButton } from './admin/NotifyIssue';
 import { SubscriptionOrder } from '../types';
 
-type AdminTab = 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
+type AdminTab = 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
 
 const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = [
   { id: 'digital_sales', label: 'Цахим борлуулалт', icon: CreditCard },
@@ -22,6 +24,7 @@ const ADMIN_TABS: { id: AdminTab; label: string; icon: typeof ShoppingBag }[] = 
   { id: 'magazines', label: 'Сэтгүүлүүд', icon: BookOpen },
   { id: 'add_magazine', label: 'Сэтгүүл нэмэх', icon: Plus },
   { id: 'manual_sub', label: 'Гараар шивэх', icon: Users },
+  { id: 'users', label: 'Хэрэглэгчид', icon: UserRound },
 ];
 
 export function Admin() {
@@ -117,6 +120,7 @@ function AdminPanel() {
           {activeTab === 'magazines' && <AdminMagazines onAdd={() => setActiveTab('add_magazine')} />}
           {activeTab === 'add_magazine' && <AdminAddMagazine />}
           {activeTab === 'manual_sub' && <AdminManualSubscription />}
+          {activeTab === 'users' && <AdminUsers />}
         </div>
       </div>
     </div>
@@ -817,6 +821,11 @@ function AdminMagazines({ onAdd }: { onAdd: () => void }) {
                     <span className="inline-block px-2 py-1 bg-slate-100 text-xs font-bold text-slate-600 rounded">
                       {mag.category === 'magazine' ? 'Сэтгүүл' : mag.category === 'book' ? 'Ном' : mag.category}
                     </span>
+                    {mag.category === 'magazine' && (
+                      <div>
+                        <NotifyIssueButton issueId={mag.id} title={mag.issueNumber ? `${mag.title} №${mag.issueNumber}` : mag.title} />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-auto border-t border-slate-100 bg-slate-50 flex">
