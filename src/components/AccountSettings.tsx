@@ -1,7 +1,7 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
-import { Bell, Check, ChevronDown, Loader2, Mail, MapPin, Pencil, Phone, User } from 'lucide-react';
+import { AlertCircle, Bell, Check, ChevronDown, Loader2, Mail, MapPin, Pencil, Phone, User } from 'lucide-react';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
-import { fullName, getMyProfile, MyProfile, saveMyProfile, startPhoneChange, verifyPhoneChange } from '../lib/account';
+import { fullName, getMyProfile, MyProfile, saveMyProfile, sendEmailVerification, startPhoneChange, verifyPhoneChange } from '../lib/account';
 import { AddressFields } from './AddressFields';
 import { AddressSummary } from './AddressSummary';
 import { addressColumns, addressComplete, emptyAddress } from '../lib/places';
@@ -89,6 +89,43 @@ function PhoneChange({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Verified, or not yet with a button that emails the link
+function EmailStatus({ verified, onSent }: { verified: boolean; onSent: (email: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  if (verified) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+        <Check className="w-3.5 h-3.5" /> Баталгаажсан
+      </span>
+    );
+  }
+  const send = async () => {
+    setBusy(true);
+    setMessage('');
+    const { status, body } = await sendEmailVerification();
+    setBusy(false);
+    if (status === 200) {
+      setMessage(`Линк илгээлээ — ${body.email} хаягаа шалгана уу.`);
+      onSent(body.email);
+    } else if (body.error === 'wait') setMessage(`${body.retryIn} секундын дараа дахин илгээнэ үү.`);
+    else setMessage('Линк илгээж чадсангүй.');
+  };
+  return (
+    <span className="block space-y-1">
+      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+          <AlertCircle className="w-3.5 h-3.5" /> Баталгаажаагүй
+        </span>
+        <button type="button" onClick={send} disabled={busy} className="font-semibold text-stone-950 underline underline-offset-2 disabled:opacity-50">
+          {busy ? 'Илгээж байна…' : 'Баталгаажуулах линк илгээх'}
+        </button>
+      </span>
+      {message && <span className="block text-xs text-stone-600">{message}</span>}
+    </span>
+  );
+}
+
 export function AccountSettings() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -102,7 +139,7 @@ export function AccountSettings() {
 
   useEffect(() => {
     if (!user) return;
-    const blank: MyProfile = { lastName: '', firstName: '', email: user.email || '', notifyNewIssue: false, address: null };
+    const blank: MyProfile = { lastName: '', firstName: '', email: user.email || '', emailVerified: false, notifyNewIssue: false, address: null };
     getMyProfile(user.id)
       .then(p => {
         const withEmail = { ...p, email: p.email || user.email || '' };
@@ -133,7 +170,9 @@ export function AccountSettings() {
     if (next.notifyNewIssue && !email) return setError('Мэдэгдэл авахын тулд и-мэйл хаягаа оруулна уу.');
     // A half-filled address is dropped rather than saved
     const address = next.address && addressComplete(next.address) ? next.address : null;
-    const toSave = { ...next, email, address };
+    const emailChanged = email !== (saved?.email || '').trim();
+    // A new address starts unverified (the database clears it too)
+    const toSave = { ...next, email, address, emailVerified: emailChanged ? false : next.emailVerified };
     setSaving(true);
     setError('');
     try {
@@ -144,6 +183,15 @@ export function AccountSettings() {
       setChangingPhone(false);
       setNotice('Хадгаллаа');
       setTimeout(() => setNotice(''), 2500);
+      // A new address gets its verification link straight away
+      if (emailChanged && email) {
+        sendEmailVerification().then(({ status }) => {
+          if (status === 200) {
+            setNotice(`Баталгаажуулах линк ${email} руу илгээлээ`);
+            setTimeout(() => setNotice(''), 6000);
+          }
+        });
+      }
     } catch (err) {
       console.error('Could not save profile:', err);
       setError('Хадгалж чадсангүй. Дахин оролдоно уу.');
@@ -205,6 +253,11 @@ export function AccountSettings() {
               <div>
                 <dt className="text-stone-500">И-мэйл</dt>
                 <dd className="font-semibold text-stone-950 break-all">{saved.email || '—'}</dd>
+                {saved.email && (
+                  <dd className="mt-1">
+                    <EmailStatus verified={saved.emailVerified} onSent={() => undefined} />
+                  </dd>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
@@ -212,7 +265,9 @@ export function AccountSettings() {
               <div>
                 <dt className="text-stone-500">Шинэ дугаарын мэдэгдэл</dt>
                 <dd className="flex items-center gap-3">
-                  <span className="font-semibold text-stone-950">{saved.notifyNewIssue ? 'И-мэйлээр авна' : 'Авахгүй'}</span>
+                  <span className="font-semibold text-stone-950">
+                    {saved.notifyNewIssue ? (saved.emailVerified ? 'И-мэйлээр авна' : 'И-мэйл баталгаажмагц ирнэ') : 'Авахгүй'}
+                  </span>
                   <button
                     type="button"
                     disabled={saving}
@@ -297,7 +352,9 @@ export function AccountSettings() {
             />
             <span>
               <span className="block text-sm font-semibold text-stone-950">Шинэ дугаар гармагц и-мэйлээр мэдэгдэх</span>
-              <span className="block text-xs text-stone-500 mt-0.5">Барилга МН сэтгүүлийн шинэ дугаар гарах бүрт нэг и-мэйл. Хүссэн үедээ унтраана.</span>
+              <span className="block text-xs text-stone-500 mt-0.5">
+                Барилга МН сэтгүүлийн шинэ дугаар гарах бүрт нэг и-мэйл. И-мэйл хаягаа баталгаажуулсны дараа ирж эхэлнэ. Хүссэн үедээ унтраана.
+              </span>
             </span>
           </label>
 

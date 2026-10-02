@@ -9,6 +9,7 @@ interface UserRow {
   id: string;
   phone: string;
   email: string;
+  emailVerified: boolean;
   name: string;
   notify: boolean;
   purchases: number;
@@ -51,7 +52,7 @@ export function AdminUsers() {
   }, [users, query]);
 
   const activeWeek = users?.filter(u => u.lastSignInAt && Date.now() - u.lastSignInAt < 7 * 864e5).length ?? 0;
-  const subscribed = users?.filter(u => u.notify).length ?? 0;
+  const subscribed = users?.filter(u => u.notify && u.emailVerified).length ?? 0;
 
   return (
     <div className="space-y-5">
@@ -117,7 +118,14 @@ export function AdminUsers() {
                       )}
                     </td>
                     <td className="px-4 py-3 font-mono text-stone-800">{u.phone || '—'}</td>
-                    <td className="px-4 py-3 text-stone-700 break-all">{u.email || '—'}</td>
+                    <td className="px-4 py-3 text-stone-700 break-all">
+                      {u.email || '—'}
+                      {u.email && (
+                        <span className={`block text-xs ${u.emailVerified ? 'text-emerald-700' : 'text-stone-400'}`}>
+                          {u.emailVerified ? '✓ баталгаажсан' : 'баталгаажаагүй'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-stone-800" title={u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString('mn-MN') : ''}>
                       {ago(u.lastSignInAt)}
                     </td>

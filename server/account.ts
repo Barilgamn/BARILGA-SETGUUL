@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import type express from 'express';
 import { admin, isAdminUser, loadMagazineRows, userIdFromToken } from './supabase.js';
 import { sendSms } from './sms.js';
-import { emailConfigured, newIssueEmail, sendEmails } from './email.js';
+import { emailConfigured, newIssueEmail, sendEmails, verifyEmail } from './email.js';
 
 type Helpers = {
   bearer: (req: express.Request) => string | null;
@@ -113,12 +113,90 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
     }
   });
 
+  // Email verification: send a link to the address on the profile...
+  app.post('/api/account/email/send-verification', async (req, res) => {
+    try {
+      const uid = await signedIn(req, res);
+      if (!uid) return;
+      if (!emailConfigured()) return res.status(503).json({ error: 'email-not-configured' });
+      const { data: profile } = await admin!
+        .from('profiles')
+        .select('email, email_verified, last_name, first_name')
+        .eq('id', uid)
+        .maybeSingle();
+      const email = String(profile?.email || '').trim();
+      if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'no-email' });
+      if (profile?.email_verified) return res.json({ ok: true, already: true });
+
+      const { data: last } = await admin!
+        .from('email_verifications')
+        .select('created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (last && Date.now() - Number(last.created_at) < RESEND_AFTER_MS) {
+        return res.status(429).json({ error: 'wait', retryIn: Math.ceil((RESEND_AFTER_MS - (Date.now() - Number(last.created_at))) / 1000) });
+      }
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const now = Date.now();
+      await admin!.from('email_verifications').delete().eq('user_id', uid);
+      const { error } = await admin!.from('email_verifications').insert({
+        token_hash: crypto.createHash('sha256').update(token).digest('hex'),
+        user_id: uid,
+        email,
+        created_at: now,
+        expires_at: now + 24 * 60 * 60 * 1000,
+      });
+      if (error) throw error;
+
+      const base = appUrl(req);
+      const name = [profile?.last_name, profile?.first_name].filter(Boolean).join(' ');
+      const { sent } = await sendEmails([verifyEmail({ to: email, base, link: `${base}/verify-email?token=${token}`, name })]);
+      if (!sent) return res.status(502).json({ error: 'send-failed' });
+      return res.json({ ok: true, email });
+    } catch (error: any) {
+      console.error('Sending verification failed:', error.message);
+      return res.status(500).json({ error: 'failed' });
+    }
+  });
+
+  // ...and mark it verified when the link comes back. No sign-in needed: the
+  // token is the proof, and the link may be opened on another device.
+  app.post('/api/account/email/verify', async (req, res) => {
+    try {
+      if (!admin) return res.status(503).json({ error: 'unavailable' });
+      const token = String(req.body?.token || '');
+      if (!/^[0-9a-f]{64}$/.test(token)) return res.status(400).json({ error: 'bad-token' });
+      const { data: row } = await admin
+        .from('email_verifications')
+        .select('*')
+        .eq('token_hash', crypto.createHash('sha256').update(token).digest('hex'))
+        .maybeSingle();
+      if (!row) return res.status(404).json({ error: 'not-found' });
+      if (Date.now() > Number(row.expires_at)) return res.status(410).json({ error: 'expired' });
+
+      const { data: profile } = await admin.from('profiles').select('email').eq('id', row.user_id).maybeSingle();
+      if (String(profile?.email || '').trim().toLowerCase() !== String(row.email).trim().toLowerCase()) {
+        return res.status(409).json({ error: 'email-changed' });
+      }
+      const { error } = await admin.from('profiles').update({ email_verified: true }).eq('id', row.user_id);
+      if (error) throw error;
+      await admin.from('email_verifications').delete().eq('user_id', row.user_id);
+      return res.json({ ok: true, email: row.email });
+    } catch (error: any) {
+      console.error('Verifying email failed:', error.message);
+      return res.status(500).json({ error: 'failed' });
+    }
+  });
+
   // New-issue alerts: how many would get one, and whether it went out already
   app.get('/api/admin/notify-issue/:id', async (req, res) => {
     try {
       if (!(await signedInAdmin(req, res))) return;
       const [{ count }, { data: sent }] = await Promise.all([
-        admin!.from('profiles').select('id', { count: 'exact', head: true }).eq('notify_new_issue', true).neq('email', ''),
+        admin!.from('profiles').select('id', { count: 'exact', head: true }).eq('notify_new_issue', true).eq('email_verified', true).neq('email', ''),
         admin!.from('issue_notifications').select('*').eq('issue_id', req.params.id).maybeSingle(),
       ]);
       return res.json({ subscribers: count || 0, sent: sent || null, emailReady: emailConfigured() });
@@ -147,12 +225,22 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
         .from('profiles')
         .select('email')
         .eq('notify_new_issue', true)
+        .eq('email_verified', true)
         .neq('email', '');
       if (error) throw error;
       const base = appUrl(req);
       const emails = [...new Set((people || []).map(p => String(p.email).trim().toLowerCase()))]
         .filter(e => /^\S+@\S+\.\S+$/.test(e))
-        .map(to => newIssueEmail(to, title, mag.cover_image ? `${base}/api/cover/${id}` : '', `${base}/magazine/${id}`, `${base}/profile`));
+        .map(to =>
+          newIssueEmail({
+            to,
+            base,
+            title,
+            description: mag.description,
+            coverUrl: mag.cover_image ? `${base}/api/cover/${id}` : '',
+            link: `${base}/magazine/${id}`,
+          })
+        );
       const { sent, failed } = await sendEmails(emails);
       await admin!.from('issue_notifications').update({ sent_count: sent, sent_at: Date.now() }).eq('issue_id', id);
       return res.json({ sent, failed, total: emails.length });
@@ -174,7 +262,7 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
         if (data.users.length < 1000) break;
       }
       const [{ data: profiles }, { data: purchases }] = await Promise.all([
-        admin!.from('profiles').select('id, last_name, first_name, email, notify_new_issue'),
+        admin!.from('profiles').select('id, last_name, first_name, email, email_verified, notify_new_issue'),
         admin!.from('purchases').select('user_id').eq('status', 'paid'),
       ]);
       const profileById = new Map((profiles || []).map(p => [p.id, p]));
@@ -188,6 +276,7 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
             id: u.id,
             phone: u.phone ? `+${String(u.phone).replace(/^\+/, '')}` : '',
             email: p.email || u.email || '',
+            emailVerified: p.email ? !!p.email_verified : !!u.email_confirmed_at,
             name: [p.last_name, p.first_name].filter(Boolean).join(' '),
             notify: !!p.notify_new_issue,
             purchases: bought.get(u.id) || 0,

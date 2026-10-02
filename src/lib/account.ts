@@ -8,6 +8,8 @@ export interface MyProfile {
   lastName: string;
   firstName: string;
   email: string;
+  // Set by the server once the reader clicks the link we emailed
+  emailVerified: boolean;
   // Email when a new issue is out
   notifyNewIssue: boolean;
   address: DeliveryAddress | null;
@@ -23,6 +25,7 @@ export async function getMyProfile(uid: string): Promise<MyProfile> {
     lastName: data?.last_name ?? '',
     firstName: data?.first_name ?? '',
     email: data?.email ?? '',
+    emailVerified: !!data?.email_verified,
     notifyNewIssue: !!data?.notify_new_issue,
     address: data?.address ? { ...emptyAddress(), ...data.address } : null,
   };
@@ -58,4 +61,14 @@ export async function verifyPhoneChange(code: string) {
   // The session still carries the old number until it is refreshed
   if (result.status === 200) await supabase.auth.refreshSession();
   return result;
+}
+
+// Email the verification link to the address saved on the profile
+export async function sendEmailVerification() {
+  return api('/api/account/email/send-verification', { method: 'POST' });
+}
+
+// The link from that email lands on /verify-email?token=…
+export async function confirmEmail(token: string) {
+  return api('/api/account/email/verify', json({ token }));
 }
