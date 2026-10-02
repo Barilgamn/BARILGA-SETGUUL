@@ -1,5 +1,5 @@
-import { ReactNode, Suspense, lazy, useState } from 'react';
-import { Building2, Check, Home, Loader2, MapPin, X } from 'lucide-react';
+import { ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Building2, Check, ChevronDown, Home, Loader2, MapPin, X } from 'lucide-react';
 import { AIMAGS, DeliveryAddress, PlaceType, Region, UB_DISTRICTS } from '../lib/places';
 
 // Delivery address: Ulaanbaatar district → khoroo, or aimag → sum; home or
@@ -54,6 +54,107 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+// A dropdown that opens right under its field, at a fixed height, instead of
+// the browser's own menu (43 khoroos filled the whole screen on a Mac).
+// Khoroos show as a grid of numbers; places as a scrolling list.
+function Picker({
+  label,
+  value,
+  display,
+  placeholder,
+  disabled,
+  options,
+  grid = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  display?: string;
+  placeholder: string;
+  disabled?: boolean;
+  options: { value: string; label: string; note?: string }[];
+  grid?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    document.addEventListener('keydown', escape);
+    // Bring the whole panel into view, then start the list at the current choice
+    panelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    panelRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={boxRef} className="relative space-y-1.5">
+      <span className="block text-sm font-semibold text-stone-800">{label}</span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`${control} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed`}
+      >
+        <span className={value ? 'text-stone-950' : 'text-stone-400'}>{value ? display || value : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-stone-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          role="listbox"
+          aria-label={label}
+          className={`absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-stone-300 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.35)] max-h-72 overflow-y-auto overscroll-contain ${
+            grid ? 'grid grid-cols-6 sm:grid-cols-8 gap-1 p-2' : 'py-1'
+          }`}
+        >
+          {options.map(opt => {
+            const selected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={
+                  grid
+                    ? `h-10 text-sm font-semibold tabular-nums transition-colors ${
+                        selected ? 'bg-stone-950 text-white' : 'bg-stone-50 text-stone-800 hover:bg-amber-100'
+                      }`
+                    : `w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                        selected ? 'bg-stone-950 text-white' : 'text-stone-800 hover:bg-stone-100'
+                      }`
+                }
+              >
+                <span>{opt.label}</span>
+                {!grid && opt.note && <span className={`text-xs ${selected ? 'text-stone-300' : 'text-stone-400'}`}>{opt.note}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AddressFields({ value, onChange }: { value: DeliveryAddress; onChange: (a: DeliveryAddress) => void }) {
   const [mapOpen, setMapOpen] = useState(value.lat != null);
   const set = (patch: Partial<DeliveryAddress>) => onChange({ ...value, ...patch });
@@ -88,63 +189,49 @@ export function AddressFields({ value, onChange }: { value: DeliveryAddress; onC
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {ub ? (
           <>
-            <Field label="Дүүрэг">
-              <select value={value.district} onChange={e => set({ district: e.target.value, subdivision: '' })} className={control} required>
-                <option value="">Дүүрэг сонгох</option>
-                {UB_DISTRICTS.map(d => (
-                  <option key={d.name} value={d.name}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Хороо">
-              <select
-                value={value.subdivision}
-                onChange={e => set({ subdivision: e.target.value })}
-                disabled={!ubDistrict}
-                className={control}
-                required
-              >
-                <option value="">{ubDistrict ? 'Хороо сонгох' : 'Эхлээд дүүргээ сонгоно уу'}</option>
-                {ubDistrict &&
-                  Array.from({ length: ubDistrict.khoroos }, (_, i) => String(i + 1)).map(n => (
-                    <option key={n} value={n}>
-                      {n}-р хороо
-                    </option>
-                  ))}
-              </select>
-            </Field>
+            <Picker
+              label="Дүүрэг"
+              value={value.district}
+              placeholder="Дүүрэг сонгох"
+              options={UB_DISTRICTS.map(d => ({ value: d.name, label: d.name, note: `${d.khoroos} хороо` }))}
+              onChange={district => district !== value.district && set({ district, subdivision: '' })}
+            />
+            <Picker
+              label="Хороо"
+              value={value.subdivision}
+              display={`${value.subdivision}-р хороо`}
+              placeholder={ubDistrict ? 'Хороо сонгох' : 'Эхлээд дүүргээ сонгоно уу'}
+              disabled={!ubDistrict}
+              grid
+              options={Array.from({ length: ubDistrict?.khoroos || 0 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+              onChange={subdivision => set({ subdivision })}
+            />
           </>
         ) : (
           <>
-            <Field label="Аймаг">
-              <select value={value.district} onChange={e => set({ district: e.target.value, subdivision: '' })} className={control} required>
-                <option value="">Аймаг сонгох</option>
-                {AIMAGS.map(a => (
-                  <option key={a.name} value={a.name}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Сум">
-              <select value={value.subdivision} onChange={e => set({ subdivision: e.target.value })} disabled={!aimag} className={control} required>
-                <option value="">{aimag ? 'Сум сонгох' : 'Эхлээд аймгаа сонгоно уу'}</option>
-                {aimag && (
-                  <>
-                    <option value={aimag.center}>{aimag.center} (аймгийн төв)</option>
-                    {aimag.sums
-                      .filter(s => s !== aimag.center)
-                      .map(s => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                  </>
-                )}
-              </select>
-            </Field>
+            <Picker
+              label="Аймаг"
+              value={value.district}
+              placeholder="Аймаг сонгох"
+              options={AIMAGS.map(a => ({ value: a.name, label: a.name, note: a.center }))}
+              onChange={district => district !== value.district && set({ district, subdivision: '' })}
+            />
+            <Picker
+              label="Сум"
+              value={value.subdivision}
+              display={aimag && value.subdivision === aimag.center ? `${value.subdivision} (аймгийн төв)` : value.subdivision}
+              placeholder={aimag ? 'Сум сонгох' : 'Эхлээд аймгаа сонгоно уу'}
+              disabled={!aimag}
+              options={
+                aimag
+                  ? [
+                      { value: aimag.center, label: aimag.center, note: 'аймгийн төв' },
+                      ...aimag.sums.filter(s => s !== aimag.center).map(s => ({ value: s, label: s })),
+                    ]
+                  : []
+              }
+              onChange={subdivision => set({ subdivision })}
+            />
           </>
         )}
       </div>
