@@ -162,7 +162,11 @@ export function subscriptionFromRow(r: any): SubscriptionOrder {
     email: r.email ?? '',
     city: r.city ?? '',
     district: r.district ?? '',
+    khoroo: r.khoroo ?? '',
     addressDetail: r.address_detail ?? '',
+    placeType: r.place_type ?? 'home',
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
     ebarimtType: r.ebarimt_type,
     companyName: r.company_name || undefined,
     registerNumber: r.register_number || undefined,
@@ -178,13 +182,14 @@ export function subscriptionFromRow(r: any): SubscriptionOrder {
 
 export type SubscriptionInput = Pick<
   SubscriptionOrder,
-  'plan' | 'fullName' | 'phone' | 'email' | 'city' | 'district' | 'addressDetail' | 'ebarimtType' | 'companyName' | 'registerNumber' | 'paymentMethod'
+  | 'plan' | 'fullName' | 'phone' | 'email' | 'city' | 'district' | 'khoroo' | 'addressDetail' | 'placeType' | 'lat' | 'lng'
+  | 'ebarimtType' | 'companyName' | 'registerNumber' | 'paymentMethod'
 >;
 
 function subscriptionToRow(s: Partial<SubscriptionOrder>) {
   const map: Record<string, string> = {
     plan: 'plan', price: 'price', fullName: 'full_name', phone: 'phone', email: 'email', city: 'city',
-    district: 'district', addressDetail: 'address_detail', ebarimtType: 'ebarimt_type', companyName: 'company_name',
+    district: 'district', khoroo: 'khoroo', addressDetail: 'address_detail', placeType: 'place_type', lat: 'lat', lng: 'lng', ebarimtType: 'ebarimt_type', companyName: 'company_name',
     registerNumber: 'register_number', paymentMethod: 'payment_method', paymentStatus: 'payment_status',
     deliveryStatus: 'delivery_status', digitalCode: 'digital_code', startDate: 'start_date', endDate: 'end_date',
   };

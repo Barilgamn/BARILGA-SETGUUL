@@ -8,6 +8,7 @@ import { BookOpen, Package, User, LogOut, ExternalLink, Calendar } from 'lucide-
 import { format } from 'date-fns';
 import { MyIssues } from '../components/MyIssues';
 import { SavedIssuesList } from '../components/SavedIssuesList';
+import { AddressSummary } from '../components/AddressSummary';
 
 export function Profile() {
   const { user, profile, signOut } = useAuth();
@@ -215,7 +216,8 @@ export function Profile() {
                     </div>
                     {order.shippingAddress && (
                       <div className="text-sm text-slate-600 text-left sm:text-right bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg mt-2 max-w-xs">
-                        <strong className="text-slate-700">Хаяг:</strong> {order.shippingAddress.city}, {order.shippingAddress.district}, {order.shippingAddress.addressLine}
+                        <strong className="text-slate-700">Хаяг:</strong>{' '}
+                        <AddressSummary {...order.shippingAddress} detail={order.shippingAddress.addressLine} />
                       </div>
                     )}
                   </div>

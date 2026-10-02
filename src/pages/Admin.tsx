@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { addMagazine, createManualSubscription, deleteMagazine, listAllMagazines, listAllSubscriptions, updateMagazine, updateSubscription } from '../lib/records';
+import { AddressSummary } from '../components/AddressSummary';
 import { BookOpen, Link as LinkIcon, Plus, FileText, Users, ShoppingBag, Search, Filter, Calendar, Edit, Trash2, X, Package, LogOut, CreditCard, ExternalLink } from 'lucide-react';
 import { AdminGate } from '../components/AdminGate';
 import { lookupHeyzineLink } from '../lib/heyzine';
@@ -263,6 +264,17 @@ function AdminOrders() {
                     <td className="px-4 py-4">
                       <div className="font-bold text-[#0F172A] text-sm">{order.fullName}</div>
                       <div className="text-xs text-slate-500">{order.phone}</div>
+                      <div className="text-xs text-slate-600 mt-1 max-w-xs">
+                        <AddressSummary
+                          city={order.city}
+                          district={order.district}
+                          khoroo={order.khoroo}
+                          detail={order.addressDetail}
+                          placeType={order.placeType}
+                          lat={order.lat}
+                          lng={order.lng}
+                        />
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-sm font-medium">
                       {order.plan === 'quarterly' ? 'Улирал' : order.plan === 'half-year' ? 'Хагас жил' : 'Жил'}

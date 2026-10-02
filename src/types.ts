@@ -42,7 +42,11 @@ export interface Order {
   shippingAddress?: {
     city: string;
     district: string;
+    khoroo?: string;
     addressLine: string;
+    placeType?: 'home' | 'office';
+    lat?: number | null;
+    lng?: number | null;
     phone: string;
   };
 }
@@ -60,7 +64,11 @@ export interface SubscriptionOrder {
   // Delivery
   city: string;
   district: string;
+  khoroo?: string;
   addressDetail: string;
+  placeType?: 'home' | 'office';
+  lat?: number | null;
+  lng?: number | null;
   // E-barimt
   ebarimtType: 'personal' | 'company';
   companyName?: string;
@@ -93,8 +101,14 @@ export interface CatalogOrder {
   fullName: string;
   phone: string;
   deliveryMethod: 'delivery' | 'pickup';
+  // «Улаанбаатар» or the aimag; district is the UB district or the sum
+  city?: string;
   district: string;
+  khoroo?: string;
   address: string;
+  placeType?: 'home' | 'office';
+  lat?: number | null;
+  lng?: number | null;
   note: string;
   status: CatalogOrderStatus;
   paymentStatus: CatalogPaymentStatus;

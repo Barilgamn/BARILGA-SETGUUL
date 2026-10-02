@@ -8,6 +8,8 @@ import { Invoice, transferReference } from '../components/Invoice';
 import { PLAN_PRICES, PlanId, planSavings } from '../lib/plans';
 import { BankSettings } from '../types';
 import { BankDetails } from '../components/BankDetails';
+import { AddressFields } from '../components/AddressFields';
+import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 import { BookOpen, MapPin, CreditCard, CheckCircle, ChevronRight, Loader2, FileText } from 'lucide-react';
 
 const PLANS = {
@@ -39,7 +41,9 @@ export function Subscribe() {
       const saved = sessionStorage.getItem(DRAFT_KEY);
       if (saved) {
         sessionStorage.removeItem(DRAFT_KEY);
-        return JSON.parse(saved);
+        const draft = JSON.parse(saved);
+        // Drafts from before the structured address have none
+        return { ...draft, address: { ...emptyAddress(), ...(draft.address || {}) } };
       }
     } catch {
       /* storage unavailable */
@@ -49,9 +53,7 @@ export function Subscribe() {
     fullName: '',
     phone: displayPhone(user),
     email: '',
-    city: 'Улаанбаатар',
-    district: '',
-    addressDetail: '',
+    address: emptyAddress() as DeliveryAddress,
     ebarimtType: 'personal',
     companyName: '',
     registerNumber: '',
@@ -61,7 +63,7 @@ export function Subscribe() {
 
   // Came back from login with a draft: go straight to the confirm step
   useEffect(() => {
-    if (user && formData.fullName && formData.district && formData.addressDetail && step === 1) {
+    if (user && formData.fullName && addressComplete(formData.address) && step === 1) {
       setStep(2);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,8 +77,12 @@ export function Subscribe() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!formData.fullName || !formData.phone || !formData.district || !formData.addressDetail) {
-        alert('Бүх талбарыг бөглөнө үү');
+      if (!formData.fullName || !formData.phone || !addressComplete(formData.address)) {
+        alert(
+          formData.address.region === 'ub'
+            ? 'Нэр, утас, дүүрэг, хороо болон дэлгэрэнгүй хаягаа бөглөнө үү'
+            : 'Нэр, утас, аймаг, сум болон дэлгэрэнгүй хаягаа бөглөнө үү'
+        );
         return;
       }
       if (formData.ebarimtType === 'company' && (!formData.companyName || !formData.registerNumber)) {
@@ -101,7 +107,18 @@ export function Subscribe() {
     setLoading(true);
     try {
       // Price and statuses are set by the database from the plan
-      const order = await createSubscription(formData as SubscriptionInput);
+      const { address, ...rest } = formData;
+      const where = addressColumns(address);
+      const order = await createSubscription({
+        ...rest,
+        city: where.city,
+        district: where.district,
+        khoroo: where.khoroo,
+        addressDetail: where.detail,
+        placeType: where.placeType,
+        lat: where.lat,
+        lng: where.lng,
+      } as SubscriptionInput);
       setOrderId(order.id);
       setStep(3);
     } catch (err) {
@@ -186,20 +203,8 @@ export function Subscribe() {
                   <label className="block text-sm font-bold text-slate-700 mb-1">Имэйл хаяг</label>
                   <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Хот/Аймаг</label>
-                  <select name="city" value={formData.city} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]">
-                    <option value="Улаанбаатар">Улаанбаатар</option>
-                    <option value="Орон нутаг">Орон нутаг</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Дүүрэг/Сум</label>
-                  <input type="text" name="district" value={formData.district} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" required />
-                </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Дэлгэрэнгүй хаяг (Байр, орц, тоот)</label>
-                  <textarea name="addressDetail" value={formData.addressDetail} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" rows={3} required></textarea>
+                  <AddressFields value={formData.address} onChange={address => setFormData({ ...formData, address })} />
                 </div>
               </div>
             </div>

@@ -2,7 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus } from 'lucide-react';
 import { CatalogOrder } from '../types';
-import { CatalogPricing, createCatalogOrder, DISTRICTS, formatCode, getCatalogPricing, orderTotal } from '../lib/catalogOrders';
+import { CatalogPricing, createCatalogOrder, formatCode, getCatalogPricing, orderTotal } from '../lib/catalogOrders';
+import { AddressFields } from '../components/AddressFields';
+import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 import { Invoice, transferReference } from '../components/Invoice';
 
 // The 8th edition is print-only (not on Heyzine), so its cover ships with the site
@@ -140,10 +142,9 @@ function OrderForm() {
     fullName: '',
     phone: '',
     deliveryMethod: 'delivery' as 'delivery' | 'pickup',
-    district: '',
-    address: '',
     note: '',
   });
+  const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [placed, setPlaced] = useState<CatalogOrder | null>(null);
@@ -164,9 +165,14 @@ function OrderForm() {
     setError('');
     if (form.fullName.trim().length < 2) return setError('Нэрээ оруулна уу.');
     if (phoneDigits.length < 8) return setError('Утасны дугаараа зөв оруулна уу (8 оронтой).');
-    if (needsAddress && (!form.district || form.address.trim().length < 5)) {
-      return setError('Хүргэлтийн дүүрэг болон хаягаа дэлгэрэнгүй оруулна уу.');
+    if (needsAddress && !addressComplete(address)) {
+      return setError(
+        address.region === 'ub'
+          ? 'Хүргэлтийн дүүрэг, хороо болон дэлгэрэнгүй хаягаа оруулна уу.'
+          : 'Хүргэлтийн аймаг, сум болон дэлгэрэнгүй хаягаа оруулна уу.'
+      );
     }
+    const where = addressColumns(address);
 
     setSubmitting(true);
     try {
@@ -177,8 +183,17 @@ function OrderForm() {
         fullName: form.fullName.trim(),
         phone: phoneDigits,
         deliveryMethod: form.deliveryMethod,
-        district: needsAddress ? form.district : '',
-        address: needsAddress ? form.address.trim() : '',
+        ...(needsAddress
+          ? {
+              city: where.city,
+              district: where.district,
+              khoroo: where.khoroo,
+              address: where.detail,
+              placeType: where.placeType,
+              lat: where.lat,
+              lng: where.lng,
+            }
+          : { district: '', address: '' }),
         note: form.note.trim(),
       });
       setPlaced(order);
@@ -302,17 +317,9 @@ function OrderForm() {
 
         {needsAddress ? (
           <>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-semibold text-stone-800">Дүүрэг</span>
-              <select className={inputClass} value={form.district} onChange={set('district')}>
-                <option value="">Сонгох</option>
-                {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-semibold text-stone-800">Хаяг</span>
-              <input className={inputClass} value={form.address} onChange={set('address')} autoComplete="street-address" placeholder="Хороо, байр, орц, тоот" />
-            </label>
+            <div className="sm:col-span-2">
+              <AddressFields value={address} onChange={setAddress} />
+            </div>
           </>
         ) : (
           <p className="sm:col-span-2 text-sm text-stone-600 bg-stone-50 rounded-xl p-4">

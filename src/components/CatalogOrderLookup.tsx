@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Check, Loader2, Search } from 'lucide-react';
 import { CatalogOrder } from '../types';
+import { AddressSummary } from './AddressSummary';
 import {
   formatCode,
   getCatalogOrder,
@@ -132,7 +133,9 @@ export function CatalogOrderLookup() {
             <div className="sm:col-span-2">
               <dt className="text-stone-500">Хүлээн авах</dt>
               <dd className="text-stone-900">
-                {order.deliveryMethod === 'pickup' ? 'Редакцаас очиж авна' : `${order.district} дүүрэг, ${order.address}`}
+                {order.deliveryMethod === 'pickup' ? 'Редакцаас очиж авна' : (
+                  <AddressSummary city={order.city} district={order.district} khoroo={order.khoroo} detail={order.address} placeType={order.placeType} lat={order.lat} lng={order.lng} />
+                )}
               </dd>
             </div>
           </dl>

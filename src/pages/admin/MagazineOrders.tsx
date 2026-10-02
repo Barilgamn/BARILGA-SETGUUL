@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Phone } from 'lucide-react';
 import { Order } from '../../types';
 import { listAllOrders, updateOrder } from '../../lib/records';
+import { AddressSummary } from '../../components/AddressSummary';
 
 const DELIVERY: Record<Order['deliveryStatus'], string> = {
   pending: 'Хүлээгдэж буй',
@@ -79,7 +80,7 @@ export function AdminMagazineOrders() {
             </p>
             {o.shippingAddress && (
               <p className="text-sm text-stone-600">
-                {o.shippingAddress.city}, {o.shippingAddress.district}, {o.shippingAddress.addressLine}
+                <AddressSummary {...o.shippingAddress} detail={o.shippingAddress.addressLine} />
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">

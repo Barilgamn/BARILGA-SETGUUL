@@ -61,8 +61,13 @@ function fromRow(r: any): CatalogOrder {
     fullName: r.full_name ?? '',
     phone: r.phone ?? '',
     deliveryMethod: r.delivery_method,
+    city: r.city ?? '',
     district: r.district ?? '',
+    khoroo: r.khoroo ?? '',
     address: r.address ?? '',
+    placeType: r.place_type ?? 'home',
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
     note: r.note ?? '',
     status: r.status,
     paymentStatus: r.payment_status,
@@ -91,7 +96,20 @@ export async function setCatalogPricing(pricing: CatalogPricing): Promise<void> 
 
 export type NewCatalogOrder = Pick<
   CatalogOrder,
-  'productId' | 'productTitle' | 'quantity' | 'fullName' | 'phone' | 'deliveryMethod' | 'district' | 'address' | 'note'
+  | 'productId'
+  | 'productTitle'
+  | 'quantity'
+  | 'fullName'
+  | 'phone'
+  | 'deliveryMethod'
+  | 'city'
+  | 'district'
+  | 'khoroo'
+  | 'address'
+  | 'placeType'
+  | 'lat'
+  | 'lng'
+  | 'note'
 >;
 
 export async function createCatalogOrder(input: NewCatalogOrder): Promise<CatalogOrder> {
@@ -106,8 +124,13 @@ export async function createCatalogOrder(input: NewCatalogOrder): Promise<Catalo
     full_name: input.fullName,
     phone: input.phone,
     delivery_method: input.deliveryMethod,
+    city: input.city ?? '',
     district: input.district,
+    khoroo: input.khoroo ?? '',
     address: input.address,
+    place_type: input.placeType ?? 'home',
+    lat: input.lat ?? null,
+    lng: input.lng ?? null,
     note: input.note,
   });
   if (error) throw error;

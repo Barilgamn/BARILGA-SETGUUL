@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { createOrder, getMagazine, isUuid } from '../lib/records';
 import { displayPhone } from '../contexts/AuthContext';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag } from 'lucide-react';
+import { AddressFields } from '../components/AddressFields';
+import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 
 export function Checkout() {
   const { id } = useParams<{ id: string }>();
@@ -45,12 +47,8 @@ export function Checkout() {
     if (magazine?.locked && format !== 'print') navigate(`/buy/${magazine.id}`, { replace: true });
   }, [magazine, format, navigate]);
 
-  const [address, setAddress] = useState({
-    city: 'Улаанбаатар',
-    district: '',
-    addressLine: '',
-    phone: displayPhone(user)
-  });
+  const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
+  const [contactPhone, setContactPhone] = useState(displayPhone(user));
   
   const [loading, setLoading] = useState(false);
   
@@ -70,6 +68,20 @@ export function Checkout() {
   
   const needsShipping = format === 'print' || format === 'both';
 
+  const shippingAddress = () => {
+    const where = addressColumns(address);
+    return {
+      city: where.city,
+      district: where.district,
+      khoroo: where.khoroo,
+      addressLine: where.detail,
+      placeType: where.placeType,
+      lat: where.lat,
+      lng: where.lng,
+      phone: contactPhone,
+    };
+  };
+
   const handlePayment = async () => {
     if (!user) {
       navigate('/login', { state: { returnTo: `${location.pathname}${location.search}` } });
@@ -80,7 +92,7 @@ export function Checkout() {
       navigate('/subscribe');
       return;
     }
-    if (needsShipping && (!address.district || !address.addressLine)) {
+    if (needsShipping && !addressComplete(address)) {
       alert('Хүргэлтийн хаягаа бүрэн оруулна уу');
       return;
     }
@@ -91,8 +103,8 @@ export function Checkout() {
       await createOrder({
         magazineId: magazine.id,
         format,
-        phone: address.phone || displayPhone(user),
-        shippingAddress: needsShipping ? address : undefined,
+        phone: contactPhone || displayPhone(user),
+        shippingAddress: needsShipping ? shippingAddress() : undefined,
       });
       navigate('/profile');
     } catch (err) {
@@ -138,45 +150,13 @@ export function Checkout() {
               </h2>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Хот/Аймаг</label>
-                    <select 
-                      value={address.city}
-                      onChange={(e) => setAddress({...address, city: e.target.value})}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A]"
-                    >
-                      <option value="Улаанбаатар">Улаанбаатар</option>
-                      <option value="Орон нутаг">Орон нутаг</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Дүүрэг/Сум</label>
-                    <input 
-                      type="text"
-                      value={address.district}
-                      onChange={(e) => setAddress({...address, district: e.target.value})}
-                      placeholder="Жнь: СБД, 1-р хороо"
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A]"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Дэлгэрэнгүй хаяг</label>
-                  <textarea 
-                    value={address.addressLine}
-                    onChange={(e) => setAddress({...address, addressLine: e.target.value})}
-                    placeholder="Байр, орц, давхар, тоот"
-                    rows={2}
-                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A]"
-                  />
-                </div>
+                <AddressFields value={address} onChange={setAddress} />
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Холбогдох дугаар</label>
                   <input 
                     type="tel"
-                    value={address.phone}
-                    onChange={(e) => setAddress({...address, phone: e.target.value})}
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A]"
                   />
                 </div>

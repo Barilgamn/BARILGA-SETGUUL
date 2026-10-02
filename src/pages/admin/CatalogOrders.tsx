@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Download, Loader2, Phone, Search } from 'lucide-react';
 import { CatalogOrder, CatalogOrderStatus } from '../../types';
+import { AddressSummary } from '../../components/AddressSummary';
+import { mapLink } from '../../lib/places';
 import {
   formatCode,
   getCatalogPricing,
@@ -57,7 +59,7 @@ export function AdminCatalogOrders() {
   }, [orders, filter, search]);
 
   const exportCsv = () => {
-    const header = ['Код', 'Огноо', 'Нэр', 'Утас', 'Тоо', 'Нэгж үнэ', 'Хүргэлт', 'Нийт', 'Хүлээн авах', 'Дүүрэг', 'Хаяг', 'Тайлбар', 'Төлөв', 'Төлбөр', 'Админ тэмдэглэл'];
+    const header = ['Код', 'Огноо', 'Нэр', 'Утас', 'Тоо', 'Нэгж үнэ', 'Хүргэлт', 'Нийт', 'Хүлээн авах', 'Хот/Аймаг', 'Дүүрэг/Сум', 'Хороо', 'Хаяг', 'Гэр/Оффис', 'Байршил', 'Тайлбар', 'Төлөв', 'Төлбөр', 'Админ тэмдэглэл'];
     const rows = visible.map(o => [
       formatCode(o.code),
       new Date(o.createdAt).toLocaleString('mn-MN'),
@@ -68,8 +70,12 @@ export function AdminCatalogOrders() {
       o.deliveryFee,
       orderTotal(o) ?? '',
       o.deliveryMethod === 'pickup' ? 'Очиж авна' : 'Хүргэлт',
+      o.deliveryMethod === 'pickup' ? '' : o.city || 'Улаанбаатар',
       o.district,
+      o.khoroo || '',
       o.address,
+      o.deliveryMethod === 'pickup' ? '' : o.placeType === 'office' ? 'Оффис' : 'Гэр',
+      o.lat != null && o.lng != null ? mapLink(o.lat, o.lng) : '',
       o.note,
       STATUS_LABELS[o.status],
       PAYMENT_LABELS[o.paymentStatus],
@@ -229,7 +235,9 @@ function OrderRow({ order, open, onToggle }: { order: CatalogOrder; open: boolea
             <div className="sm:col-span-2">
               <dt className="text-stone-500">Хүлээн авах</dt>
               <dd className="text-stone-900">
-                {order.deliveryMethod === 'pickup' ? 'Редакцаас очиж авна' : `${order.district} дүүрэг, ${order.address}`}
+                {order.deliveryMethod === 'pickup' ? 'Редакцаас очиж авна' : (
+                  <AddressSummary city={order.city} district={order.district} khoroo={order.khoroo} detail={order.address} placeType={order.placeType} lat={order.lat} lng={order.lng} />
+                )}
               </dd>
             </div>
             {order.note && (
