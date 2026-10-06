@@ -71,6 +71,8 @@ export function AdminMagazineOrders() {
             </div>
             <p className="text-sm text-stone-500">
               <span className="font-semibold text-stone-900 tabular-nums">{o.totalPrice.toLocaleString()}₮</span>
+              {o.shippingAddress?.fullName && <> · <span className="font-semibold text-stone-900">{o.shippingAddress.fullName}</span></>}
+              {!o.userId && <span className="ml-1.5 text-xs text-stone-400">(зочин)</span>}
               {' · '}
               <a href={`tel:${o.phoneNumber}`} className="inline-flex items-center gap-1 hover:underline">
                 <Phone className="w-3.5 h-3.5" /> {o.phoneNumber || '—'}

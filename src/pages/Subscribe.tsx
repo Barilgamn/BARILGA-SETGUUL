@@ -1,7 +1,7 @@
 import React, { FormEvent, Fragment, useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
-import { createSubscription, SubscriptionInput } from '../lib/records';
+import { createSubscription, isRateLimited, SubscriptionInput } from '../lib/records';
 import { getBankSettings } from '../lib/purchases';
 import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
 import { Invoice, transferReference } from '../components/Invoice';
@@ -119,18 +119,19 @@ export function Subscribe() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSubmit = async () => {
-    if (!user) {
-      try {
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
-      } catch {
-        /* storage unavailable: the form is simply refilled */
-      }
-      navigate(`/login?redirect=${encodeURIComponent(`/subscribe?plan=${formData.plan}`)}`);
-      return;
+  // Keep what was typed when leaving to sign in; it comes back afterwards
+  const saveDraft = () => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
+    } catch {
+      /* storage unavailable: the form is simply refilled from the profile */
     }
+  };
 
+  // Guests can order too; a signed-in order also shows under «Миний хэвлэлүүд»
+  const handleSubmit = async () => {
     setLoading(true);
+    setFormError('');
     try {
       // Price and statuses are set by the database from the plan
       const { address, ...rest } = formData;
@@ -149,7 +150,11 @@ export function Subscribe() {
       setStep(3);
     } catch (err) {
       console.error(err);
-      alert('Алдаа гарлаа. Та дахин оролдоно уу.');
+      setFormError(
+        isRateLimited(err)
+          ? `Энэ дугаараас саяхан хэд хэдэн захиалга ирсэн байна. Түр хүлээгээд дахин оролдох эсвэл ${CONTACT_PHONE} руу залгана уу.`
+          : 'Захиалга илгээхэд алдаа гарлаа. Дахин оролдоно уу.'
+      );
     } finally {
       setLoading(false);
     }
@@ -182,6 +187,15 @@ export function Subscribe() {
           <div className="mb-8">
             <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">Сэтгүүл захиалах</h1>
             <p className="text-sm text-stone-500 mt-1">Барилга МН сэтгүүлийг сар бүр гэр, оффисоороо хүлээн аваарай.</p>
+            {!user && (
+              <p className="mt-3 text-sm text-stone-600 bg-stone-50 border border-stone-200 px-4 py-3">
+                Нэвтрэхгүйгээр захиалж болно.{' '}
+                <Link onClick={saveDraft} to={`/login?redirect=${encodeURIComponent(`/subscribe?plan=${formData.plan}`)}`} className="font-semibold text-stone-950 underline underline-offset-2">
+                  Нэвтэрвэл
+                </Link>{' '}
+                нэр, утас, хаяг тань автоматаар бөглөгдөнө.
+              </p>
+            )}
           </div>
 
           <form
@@ -323,7 +337,16 @@ export function Subscribe() {
               {loading ? 'Илгээж байна…' : 'Нэхэмжлэх үүсгэх'}
             </button>
           </div>
-          {!user && <p className="text-xs text-center text-stone-500">Нэхэмжлэх үүсгэхийн өмнө утасны дугаараараа нэвтэрнэ. Бөглөсөн мэдээлэл хадгалагдана.</p>}
+          {formError && <p className="text-sm font-medium text-red-600 text-center" role="alert">{formError}</p>}
+          {!user && (
+            <p className="text-xs text-center text-stone-500">
+              Нэвтрэхгүйгээр захиалж болно. Утасны дугаараараа{' '}
+              <Link onClick={saveDraft} to={`/login?redirect=${encodeURIComponent(`/subscribe?plan=${formData.plan}`)}`} className="underline font-semibold text-stone-700">
+                нэвтэрвэл
+              </Link>{' '}
+              мэдээлэл тань бөглөгдөж, захиалгаа «Миний хэвлэлүүд»-ээс хянана.
+            </p>
+          )}
         </section>
       )}
 
@@ -349,8 +372,11 @@ export function Subscribe() {
             note="Төлбөр орсныг шалгаад захиалгыг идэвхжүүлж, хүргэлтийн мэдээллийг утсаар мэдэгдэнэ."
           />
 
-          <button onClick={() => navigate('/profile')} className="print:hidden w-full sm:w-auto px-8 py-3.5 bg-stone-950 text-white font-semibold hover:bg-stone-800 transition-colors">
-            Миний хэвлэлүүд рүү
+          <button
+            onClick={() => navigate(user ? '/profile' : '/')}
+            className="print:hidden w-full sm:w-auto px-8 py-3.5 bg-stone-950 text-white font-semibold hover:bg-stone-800 transition-colors"
+          >
+            {user ? 'Миний хэвлэлүүд рүү' : 'Нүүр хуудас руу'}
           </button>
         </div>
       )}

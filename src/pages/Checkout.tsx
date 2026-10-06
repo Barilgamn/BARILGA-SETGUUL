@@ -1,233 +1,209 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { MOCK_MAGAZINES } from '../lib/data';
-import { findHeyzineMagazine } from '../lib/heyzine';
-import { useAuth } from '../contexts/AuthContext';
-import { createOrder, getMagazine, isUuid } from '../lib/records';
-import { displayPhone } from '../contexts/AuthContext';
-import { MapPin, CreditCard, ShieldCheck, ShoppingBag } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Loader2 } from 'lucide-react';
+import { displayPhone, useAuth } from '../contexts/AuthContext';
+import { createOrder, getMagazine, isRateLimited, isUuid } from '../lib/records';
 import { AddressFields } from '../components/AddressFields';
+import { Field, fieldClass, FormStep, OrderSummary } from '../components/OrderForm';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
-import { getMyProfile } from '../lib/account';
+import { fullName, getMyProfile } from '../lib/account';
+import { displayTitle } from '../lib/library';
+import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
+
+// A single printed issue, delivered. Anyone can order (no account needed);
+// signed-in readers find their name, phone and saved address filled in.
+// Digital copies are bought on /buy instead.
 
 export function Checkout() {
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
+  const { id = '' } = useParams<{ id: string }>();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
-  const searchParams = new URLSearchParams(location.search);
-  const format = searchParams.get('format') as 'digital' | 'print' | 'both' || 'digital';
-  
-  const [magazine, setMagazine] = useState<any>(MOCK_MAGAZINES.find(m => m.id === id) || null);
-  const [loadingMag, setLoadingMag] = useState(!magazine);
+  const format = params.get('format') || 'print';
+
+  const [magazine, setMagazine] = useState<any>(undefined);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [placedId, setPlacedId] = useState('');
 
   useEffect(() => {
-    if (!magazine && id) {
-      const fetchMag = async () => {
-        try {
-          const heyzineMag = await findHeyzineMagazine(id);
-          if (heyzineMag) {
-            setMagazine(heyzineMag);
-            return;
-          }
-          const found = await getMagazine(id);
-          if (found) setMagazine(found);
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setLoadingMag(false);
-        }
-      };
-      fetchMag();
-    }
-  }, [id, magazine]);
+    getMagazine(id)
+      .then(found => setMagazine(found || null))
+      .catch(() => setMagazine(null));
+  }, [id]);
 
-  // Paid digital copies are bought on /buy, which unlocks reading once paid
+  // Only print is ordered here; digital goes to buying or reading
   useEffect(() => {
-    if (magazine?.locked && format !== 'print') navigate(`/buy/${magazine.id}`, { replace: true });
+    if (magazine && format !== 'print') navigate(magazine.locked ? `/buy/${magazine.id}` : `/read/${magazine.id}`, { replace: true });
   }, [magazine, format, navigate]);
 
-  const [address, setAddress] = useState<DeliveryAddress>(emptyAddress);
-  const [contactPhone, setContactPhone] = useState(displayPhone(user));
-
-  // Start from the address saved under «Миний мэдээлэл»
+  // Signed in: start from the details saved under «Миний мэдээлэл»
   useEffect(() => {
     if (!user) return;
+    setPhone(p => p || displayPhone(user).replace(/^\+976/, ''));
     getMyProfile(user.id)
-      .then(p => p.address && setAddress(a => (a.district ? a : p.address!)))
+      .then(p => {
+        setName(n => n || fullName(p));
+        if (p.address) setAddress(a => (a.district ? a : p.address!));
+      })
       .catch(() => undefined);
   }, [user]);
-  
-  const [loading, setLoading] = useState(false);
-  
-  if (loadingMag) {
-    return <div className="text-center py-20 text-slate-500">Уншиж байна...</div>;
+
+  if (magazine === undefined) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+      </div>
+    );
+  }
+  if (!magazine || !isUuid(magazine.id)) {
+    return (
+      <div className="max-w-md mx-auto text-center py-16 space-y-3">
+        <p className="font-semibold text-stone-950">Энэ дугаарыг дангаар нь хэвлэмэлээр захиалах боломжгүй.</p>
+        <Link to="/subscribe" className="inline-flex px-6 py-3 bg-stone-950 text-white text-sm font-semibold">
+          Сэтгүүл захиалах
+        </Link>
+      </div>
+    );
   }
 
-  if (!magazine) {
-    return <div className="text-center py-20">Сэтгүүл олдсонгүй</div>;
-  }
-  
-  const getPrice = () => {
-    if (format === 'digital') return magazine.priceDigital;
-    if (format === 'print') return magazine.pricePrint;
-    return magazine.priceDigital + magazine.pricePrint;
-  };
-  
-  const needsShipping = format === 'print' || format === 'both';
+  const title = displayTitle(magazine);
+  const price = Number(magazine.pricePrint) || 0;
 
-  const shippingAddress = () => {
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (name.trim().length < 2 || phone.replace(/\D/g, '').length < 8) return setError('Овог нэр, утасны дугаараа бөглөнө үү.');
+    if (!addressComplete(address)) {
+      return setError(
+        address.region === 'ub'
+          ? 'Хүргэлтийн дүүрэг, хороо болон дэлгэрэнгүй хаягаа бөглөнө үү.'
+          : 'Хүргэлтийн аймаг, сум болон дэлгэрэнгүй хаягаа бөглөнө үү.'
+      );
+    }
     const where = addressColumns(address);
-    return {
-      city: where.city,
-      district: where.district,
-      khoroo: where.khoroo,
-      addressLine: where.detail,
-      placeType: where.placeType,
-      lat: where.lat,
-      lng: where.lng,
-      phone: contactPhone,
-    };
-  };
-
-  const handlePayment = async () => {
-    if (!user) {
-      navigate('/login', { state: { returnTo: `${location.pathname}${location.search}` } });
-      return;
-    }
-    if (!isUuid(magazine.id)) {
-      alert('Энэ хэвлэлийг багц захиалгаар авна уу.');
-      navigate('/subscribe');
-      return;
-    }
-    if (needsShipping && !addressComplete(address)) {
-      alert('Хүргэлтийн хаягаа бүрэн оруулна уу');
-      return;
-    }
-
-    setLoading(true);
+    setSending(true);
     try {
-      // Price and statuses are set by the database; admin confirms payment
-      await createOrder({
+      // Price and statuses are set by the database; the office confirms payment
+      const { id: orderId } = await createOrder({
         magazineId: magazine.id,
-        format,
-        phone: contactPhone || displayPhone(user),
-        shippingAddress: needsShipping ? shippingAddress() : undefined,
+        format: 'print',
+        phone: phone.trim(),
+        shippingAddress: {
+          fullName: name.trim(),
+          city: where.city,
+          district: where.district,
+          khoroo: where.khoroo,
+          addressLine: where.detail,
+          placeType: where.placeType,
+          lat: where.lat,
+          lng: where.lng,
+          phone: phone.trim(),
+        },
       });
-      navigate('/profile');
+      setPlacedId(orderId);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      console.error(err);
-      alert('Захиалга үүсгэхэд алдаа гарлаа');
+      console.error('Print order failed:', err);
+      setError(
+        isRateLimited(err)
+          ? `Энэ дугаараас саяхан хэд хэдэн захиалга ирсэн байна. Түр хүлээгээд дахин оролдох эсвэл ${CONTACT_PHONE} руу залгана уу.`
+          : 'Захиалга илгээхэд алдаа гарлаа. Дахин оролдоно уу.'
+      );
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
+
+  if (placedId) {
+    return (
+      <section className="max-w-xl mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-6 sm:p-10 text-center space-y-4">
+        <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-stone-950">Захиалга хүлээн авлаа</h1>
+        <p className="text-stone-700">
+          «{title}» хэвлэмэл дугаарын захиалга № <span className="font-mono font-semibold">{placedId.slice(0, 8).toUpperCase()}</span>. Манай ажилтан{' '}
+          {phone} дугаарт холбогдож төлбөр, хүргэлтийг баталгаажуулна.
+        </p>
+        <p className="text-sm text-stone-600">
+          Лавлах:{' '}
+          <a href={CONTACT_PHONE_TEL} className="font-semibold text-stone-950">
+            {CONTACT_PHONE}
+          </a>
+          . Төлбөр баталгаажсаны дараа энэ дугаарыг цахимаар ч уншина.
+        </p>
+        <Link to={user ? '/profile' : '/'} className="inline-flex px-6 py-3 bg-stone-950 text-white text-sm font-semibold hover:bg-stone-800">
+          {user ? 'Миний хэвлэлүүд рүү' : 'Нүүр хуудас руу'}
+        </Link>
+      </section>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] mb-6 sm:mb-8 tracking-tight">Захиалга баталгаажуулах</h1>
-      
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="lg:w-2/3 space-y-6">
-          
-          {/* Order Summary */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-xl font-bold text-[#0F172A] mb-4 flex items-center">
-              <ShoppingBag className="h-5 w-5 mr-2 text-[#F59E0B]" />
-              Захиалгын мэдээлэл
-            </h2>
-            
-            <div className="flex gap-4 items-center">
-              <img src={magazine.coverImage} alt={magazine.title} className="w-20 h-auto rounded shadow-sm" />
-              <div>
-                <h3 className="font-bold text-[#0F172A]">{magazine.title}</h3>
-                <p className="text-sm text-slate-500">{magazine.issueNumber}</p>
-                <div className="mt-2 text-xs font-bold bg-slate-100 text-[#0F172A] px-2 py-1 rounded inline-block">
-                  {format === 'digital' ? 'Цахим' : format === 'print' ? 'Хэвлэмэл' : 'Цахим + Хэвлэмэл'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Shipping Address */}
-          {needsShipping && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h2 className="text-xl font-bold text-[#0F172A] mb-4 flex items-center">
-                <MapPin className="h-5 w-5 mr-2 text-[#F59E0B]" />
-                Хүргэлтийн хаяг
-              </h2>
-              
-              <div className="space-y-4">
-                <AddressFields value={address} onChange={setAddress} />
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Холбогдох дугаар</label>
-                  <input 
-                    type="tel"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0F172A] focus:border-[#0F172A]"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Payment Method */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-xl font-bold text-[#0F172A] mb-4 flex items-center">
-              <CreditCard className="h-5 w-5 mr-2 text-[#F59E0B]" />
-              Төлбөр
-            </h2>
-            
-            <div className="border border-orange-100 bg-orange-50 p-4 rounded-xl flex items-start">
-              <ShieldCheck className="h-6 w-6 text-orange-600 mt-0.5 mr-3 flex-shrink-0" />
-              <div>
-                <p className="font-bold text-orange-900">Төлбөрийг баталгаажуулах үед</p>
-                <p className="text-sm text-orange-800 mt-1">
-                  Захиалга илгээсний дараа манай ажилтан холбогдож төлбөрийн мэдээллийг өгнө. Захиалгын явц «Миний хэвлэлүүд»-д харагдана.
-                </p>
-              </div>
-            </div>
-          </div>
-          
-        </div>
-        
-        {/* Total Summary */}
-        <div className="lg:w-1/3">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-24">
-            <h3 className="text-lg font-bold text-[#0F172A] mb-4 border-b border-slate-100 pb-4">Төлбөрийн мэдээлэл</h3>
-            
-            <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-slate-600 text-sm">
-                <span>Сэтгүүлийн үнэ</span>
-                <span className="font-bold text-[#0F172A]">{getPrice().toLocaleString()} ₮</span>
-              </div>
-              {needsShipping && (
-                <div className="flex justify-between text-slate-600 text-sm">
-                  <span>Хүргэлт</span>
-                  <span className="font-bold text-green-600">Үнэгүй</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="border-t border-slate-100 pt-4 mb-6">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-[#0F172A]">Нийт дүн</span>
-                <span className="text-2xl font-extrabold text-[#0F172A]">{getPrice().toLocaleString()} ₮</span>
-              </div>
-            </div>
-            
-            <button
-              onClick={handlePayment}
-              disabled={loading}
-              className="w-full bg-[#0F172A] text-white hover:bg-slate-800 py-4 rounded-xl font-bold text-sm transition-colors disabled:opacity-70 flex justify-center items-center shadow-sm"
-            >
-              {loading ? 'Уншиж байна...' : user ? 'Захиалга илгээх' : 'Нэвтэрч захиалах'}
-            </button>
-          </div>
+    <section className="max-w-3xl mx-auto bg-white rounded-2xl sm:rounded-3xl border border-stone-200 p-6 sm:p-10 shadow-sm">
+      <div className="flex gap-4 sm:gap-6 mb-8">
+        {magazine.coverImage && (
+          <img src={magazine.coverImage} alt="" referrerPolicy="no-referrer" className="w-20 sm:w-24 aspect-[3/4] object-cover bg-stone-200 shadow-md shrink-0" />
+        )}
+        <div>
+          <p className="text-sm font-semibold text-amber-700">Хэвлэмэл дугаар захиалах</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 mt-1">{title}</h1>
+          <p className="text-sm text-stone-500 mt-1">Хаягаар тань хүргэнэ. Төлбөр баталгаажсаны дараа цахимаар ч уншина.</p>
         </div>
       </div>
-    </div>
+
+      {!user && (
+        <p className="mb-8 text-sm text-stone-600 bg-stone-50 border border-stone-200 px-4 py-3">
+          Нэвтрэхгүйгээр захиалж болно.{' '}
+          <Link to={`/login?redirect=${encodeURIComponent(`/checkout/${magazine.id}?format=print`)}`} className="font-semibold text-stone-950 underline underline-offset-2">
+            Нэвтэрвэл
+          </Link>{' '}
+          нэр, утас, хаяг тань автоматаар бөглөгдөнө.
+        </p>
+      )}
+
+      <form onSubmit={submit} className="space-y-8" noValidate>
+        <FormStep n={1} title="Таны мэдээлэл">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Овог, нэр">
+              <input className={fieldClass} value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder="Бат Болд" />
+            </Field>
+            <Field label="Утасны дугаар">
+              <input className={fieldClass} value={phone} onChange={e => setPhone(e.target.value)} type="tel" inputMode="numeric" autoComplete="tel" placeholder="9911 2233" />
+            </Field>
+          </div>
+        </FormStep>
+
+        <FormStep n={2} title="Хүргэлтийн хаяг">
+          <AddressFields value={address} onChange={setAddress} />
+        </FormStep>
+
+        <div className="border-t-2 border-stone-950 pt-5 space-y-4">
+          <OrderSummary
+            lines={[
+              { label: `${title} — хэвлэмэл`, value: price ? `${price.toLocaleString()}₮` : 'Үнийг мэдэгдэнэ' },
+              { label: 'Хүргэлт (Улаанбаатар)', value: 'Үнэгүй' },
+            ]}
+            total={price ? `${price.toLocaleString()}₮` : '—'}
+          />
+          {error && (
+            <p className="text-sm font-medium text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={sending}
+            className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 font-bold transition-colors"
+          >
+            {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+            Захиалга илгээх
+          </button>
+          <p className="text-xs text-center text-stone-500">Илгээсний дараа манай ажилтан холбогдож төлбөрийн мэдээллийг өгнө.</p>
+        </div>
+      </form>
+    </section>
   );
 }

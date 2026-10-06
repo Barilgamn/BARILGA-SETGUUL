@@ -40,6 +40,8 @@ export interface Order {
   createdAt: number;
   phoneNumber: string;
   shippingAddress?: {
+    // Guests' orders carry the name here (orders has no name column)
+    fullName?: string;
     city: string;
     district: string;
     khoroo?: string;

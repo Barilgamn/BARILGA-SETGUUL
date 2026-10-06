@@ -69,30 +69,28 @@ export async function userHasPrintAccess(
   issue: { issueId: string; publishedAt: number; isMagazine: boolean }
 ): Promise<boolean> {
   if (!admin) return false;
+  // Orders placed as a guest or typed in by the office carry only a phone
+  // number, so they also count when their phone is the login phone
+  const { data: account } = await admin.auth.admin.getUserById(userId);
+  const last8 = String(account?.user?.phone || '').replace(/\D/g, '').slice(-8);
+  const samePhone = (phone: unknown) => last8.length === 8 && String(phone || '').replace(/\D/g, '').slice(-8) === last8;
+
   if (UUID.test(issue.issueId)) {
     const { data } = await admin
       .from('orders')
-      .select('id')
-      .eq('user_id', userId)
+      .select('user_id, phone')
       .eq('magazine_id', issue.issueId)
-      .eq('payment_status', 'paid')
-      .limit(1);
-    if ((data || []).length) return true;
+      .eq('payment_status', 'paid');
+    if ((data || []).some(o => o.user_id === userId || samePhone(o.phone))) return true;
   }
   if (!issue.isMagazine || !issue.publishedAt) return false;
-  // Subscriptions typed in by the office («Гараар шивэх») carry only a phone
-  // number, so a subscription also counts when its phone is the login phone
-  const { data: account } = await admin.auth.admin.getUserById(userId);
-  const last8 = String(account?.user?.phone || '').replace(/\D/g, '').slice(-8);
   const { data: paid, error } = await admin
     .from('subscription_orders')
     .select('user_id, phone, start_date, end_date, created_at')
     .eq('payment_status', 'paid');
   if (error) throw new Error(`subscription_orders: ${error.message}`);
   // Phones are typed freely ("9911-2233", "+976 99112233"), so compare digits
-  const subs = (paid || []).filter(
-    s => s.user_id === userId || (last8.length === 8 && String(s.phone || '').replace(/\D/g, '').slice(-8) === last8)
-  );
+  const subs = (paid || []).filter(s => s.user_id === userId || samePhone(s.phone));
   return (subs || []).some(s => {
     const start = Number(s.start_date ?? s.created_at);
     const end = s.end_date == null ? Infinity : Number(s.end_date);

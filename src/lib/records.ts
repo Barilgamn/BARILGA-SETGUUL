@@ -111,19 +111,18 @@ export async function createOrder(input: {
   phone: string;
   shippingAddress?: Order['shippingAddress'];
 }) {
-  // Price, owner and statuses come from a database trigger
-  const { data, error } = await supabase
-    .from('orders')
-    .insert({
-      magazine_id: input.magazineId,
-      format: input.format,
-      phone: input.phone,
-      shipping_address: input.shippingAddress ?? null,
-    })
-    .select()
-    .single();
+  // Price, owner and statuses come from a database trigger. Guests may order
+  // but not read orders back, so the id is made here and nothing is selected.
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from('orders').insert({
+    id,
+    magazine_id: input.magazineId,
+    format: input.format,
+    phone: input.phone,
+    shipping_address: input.shippingAddress ?? null,
+  });
   if (error) throw error;
-  return orderFromRow(data);
+  return { id };
 }
 
 export async function listMyOrders(uid: string) {
@@ -198,12 +197,18 @@ function subscriptionToRow(s: Partial<SubscriptionOrder>) {
   return row;
 }
 
-// Price and statuses are set by a database trigger for non-admins
+// Price and statuses are set by a database trigger for non-admins. Anyone may
+// subscribe without an account; guests can't read the row back, so the id is
+// made here (it numbers the invoice) and nothing is selected.
 export async function createSubscription(input: SubscriptionInput) {
-  const { data, error } = await supabase.from('subscription_orders').insert(subscriptionToRow(input)).select().single();
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from('subscription_orders').insert({ id, ...subscriptionToRow(input) });
   if (error) throw error;
-  return subscriptionFromRow(data);
+  return { id };
 }
+
+// Database refusals worded for buyers (see migration 0013)
+export const isRateLimited = (err: unknown) => /RATE_LIMIT/.test(String((err as any)?.message || ''));
 
 // Admin "Гараар шивэх": keeps the admin's values
 export async function createManualSubscription(input: Partial<SubscriptionOrder>) {
