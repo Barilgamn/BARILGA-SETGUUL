@@ -22,25 +22,28 @@ function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="grid grid-cols-2 border border-stone-300 bg-white">
-      {options.map(opt => {
-        const active = value === opt.id;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.id)}
-            className={`inline-flex items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors ${
-              active ? 'bg-stone-950 text-white' : 'text-stone-700 hover:bg-stone-50'
-            }`}
-          >
-            {opt.icon}
-            {opt.label}
-          </button>
-        );
-      })}
+    <div className="space-y-1.5">
+      <span className="block text-sm font-semibold text-stone-800">{label}</span>
+      <div role="radiogroup" aria-label={label} className="grid grid-cols-2 border border-stone-300 bg-white">
+        {options.map(opt => {
+          const active = value === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(opt.id)}
+              className={`inline-flex items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors ${
+                active ? 'bg-stone-950 text-white' : 'text-stone-700 hover:bg-stone-50'
+              }`}
+            >
+              {opt.icon}
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -176,7 +179,7 @@ export function AddressFields({
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Segmented<Region>
-          label="Хот эсвэл орон нутаг"
+          label="Хүргэх бүс"
           value={value.region}
           onChange={region => region !== value.region && set({ region, district: '', subdivision: '' })}
           options={[
@@ -185,7 +188,7 @@ export function AddressFields({
           ]}
         />
         <Segmented<PlaceType>
-          label="Хүргүүлэх газар"
+          label="Хүлээн авах газар"
           value={value.placeType}
           onChange={placeType => set({ placeType })}
           options={[

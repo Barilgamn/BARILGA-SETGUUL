@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus, Store, Truck } from 'lucide-react';
 import { CatalogOrder } from '../types';
 import { CatalogPricing, createCatalogOrder, formatCode, getCatalogPricing, orderTotal } from '../lib/catalogOrders';
 import { AddressFields } from '../components/AddressFields';
@@ -136,6 +136,22 @@ export function HouseCatalog() {
   );
 }
 
+// One numbered part of the order form: the number on the left, its title
+// and fields beside it
+function Step({ n, title, optional = false, children }: { n: number; title: string; optional?: boolean; children: ReactNode }) {
+  return (
+    <div role="group" aria-label={title} className="flex gap-3 sm:gap-4">
+      <span className="w-8 h-8 shrink-0 flex items-center justify-center bg-stone-950 text-white text-sm font-bold tabular-nums">{n}</span>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-stone-950 mb-3 leading-8">
+          {title} {optional && <span className="font-normal text-stone-400">(заавал биш)</span>}
+        </p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function OrderForm() {
   const [pricing, setPricing] = useState<CatalogPricing>({ price: null, deliveryFee: 0 });
   const price = pricing.price;
@@ -225,7 +241,7 @@ function OrderForm() {
   };
 
   const inputClass =
-    'w-full px-4 py-3 rounded-xl border border-stone-300 bg-white text-base text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900';
+    'w-full px-4 py-3 border border-stone-300 bg-white text-base text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-950 focus:ring-2 focus:ring-stone-950/10';
 
   if (placed) {
     const total = orderTotal(placed);
@@ -289,88 +305,119 @@ function OrderForm() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4" noValidate>
-        <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-stone-800">Нэр</span>
-          <input className={inputClass} value={form.fullName} onChange={set('fullName')} autoComplete="name" placeholder="Овог нэр" />
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-stone-800">Утасны дугаар</span>
-          <input className={inputClass} value={form.phone} onChange={set('phone')} type="tel" inputMode="numeric" autoComplete="tel" placeholder="9911 2233" />
-        </label>
-
-        <div className="space-y-1.5">
-          <span className="text-sm font-semibold text-stone-800 block">Тоо ширхэг</span>
-          <div className="inline-flex items-center rounded-xl border border-stone-300 bg-white">
-            <button type="button" aria-label="Хасах" onClick={() => setQuantity(q => Math.max(1, q - 1))} className="p-3.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" disabled={quantity <= 1}>
-              <Minus className="w-4 h-4" />
-            </button>
-            <span className="w-10 text-center text-base font-semibold tabular-nums">{quantity}</span>
-            <button type="button" aria-label="Нэмэх" onClick={() => setQuantity(q => Math.min(50, q + 1))} className="p-3.5 text-stone-600 hover:text-stone-900">
-              <Plus className="w-4 h-4" />
-            </button>
+      <form onSubmit={handleSubmit} className="space-y-8" noValidate>
+        <Step n={1} title="Таны мэдээлэл">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold text-stone-800">Овог, нэр</span>
+              <input className={inputClass} value={form.fullName} onChange={set('fullName')} autoComplete="name" placeholder="Бат Болд" />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold text-stone-800">Утасны дугаар</span>
+              <input className={inputClass} value={form.phone} onChange={set('phone')} type="tel" inputMode="numeric" autoComplete="tel" placeholder="9911 2233" />
+            </label>
           </div>
-        </div>
+        </Step>
 
-        <div className="space-y-1.5">
-          <span className="text-sm font-semibold text-stone-800 block">Хүлээн авах</span>
-          <div className="grid grid-cols-2 gap-2">
-            {([
-              ['delivery', pricing.deliveryFee ? `Хүргүүлэх (+${pricing.deliveryFee.toLocaleString()}₮)` : 'Хүргүүлэх'],
-              ['pickup', 'Очиж авах'],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setForm(f => ({ ...f, deliveryMethod: value }))}
-                className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${
-                  form.deliveryMethod === value ? 'bg-stone-900 border-stone-900 text-white' : 'bg-white border-stone-300 text-stone-700 hover:border-stone-500'
-                }`}
-              >
-                {label}
+        <Step n={2} title="Тоо ширхэг">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="inline-flex items-center border border-stone-300 bg-white">
+              <button type="button" aria-label="Хасах" onClick={() => setQuantity(q => Math.max(1, q - 1))} className="p-3.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" disabled={quantity <= 1}>
+                <Minus className="w-4 h-4" />
               </button>
-            ))}
-          </div>
-        </div>
-
-        {needsAddress ? (
-          <>
-            <div className="sm:col-span-2">
-              <AddressFields value={address} onChange={setAddress} />
+              <span className="w-10 text-center text-base font-semibold tabular-nums">{quantity}</span>
+              <button type="button" aria-label="Нэмэх" onClick={() => setQuantity(q => Math.min(50, q + 1))} className="p-3.5 text-stone-600 hover:text-stone-900">
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
-          </>
-        ) : (
-          <p className="sm:col-span-2 text-sm text-stone-600 bg-stone-50 rounded-xl p-4">
-            Редакцаас очиж авна: Баянзүрх дүүрэг, 6-р хороо, 21-р сургуулийн баруун талд.
-          </p>
-        )}
-
-        <label className="block space-y-1.5 sm:col-span-2">
-          <span className="text-sm font-semibold text-stone-800">Нэмэлт тайлбар <span className="font-normal text-stone-400">(заавал биш)</span></span>
-          <textarea className={inputClass} rows={2} value={form.note} onChange={set('note')} placeholder="Байгууллагын нэр, хүргэлтийн цаг г.м" />
-        </label>
-
-        {error && <p className="sm:col-span-2 text-sm font-medium text-red-600" role="alert">{error}</p>}
-
-        <div className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-stone-100">
-          <p className="text-sm text-stone-500">
-            {price != null ? (
-              <>
-                Нийт <span className="text-lg font-bold text-stone-900 tabular-nums">{(price * quantity + deliveryFee).toLocaleString()}₮</span>
-                {deliveryFee > 0 && <> ({(price * quantity).toLocaleString()}₮ + хүргэлт {deliveryFee.toLocaleString()}₮)</>}
-              </>
-            ) : (
-              <>Үнэ, хүргэлтийн төлбөрийг баталгаажуулах үед мэдэгдэнэ</>
+            {price != null && (
+              <p className="text-sm text-stone-500 tabular-nums">
+                {price.toLocaleString()}₮ × {quantity} = <span className="font-semibold text-stone-900">{(price * quantity).toLocaleString()}₮</span>
+              </p>
             )}
-          </p>
+          </div>
+        </Step>
+
+        <Step n={3} title="Хүлээн авах">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Хүлээн авах арга">
+            {([
+              { value: 'delivery', icon: <Truck className="w-5 h-5" />, title: 'Хүргүүлэх', note: 'Гэр, оффис руу', price: pricing.deliveryFee ? `+${pricing.deliveryFee.toLocaleString()}₮` : 'Үнэгүй' },
+              { value: 'pickup', icon: <Store className="w-5 h-5" />, title: 'Очиж авах', note: 'Редакцаас', price: 'Үнэгүй' },
+            ] as const).map(opt => {
+              const active = form.deliveryMethod === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setForm(f => ({ ...f, deliveryMethod: opt.value }))}
+                  className={`flex items-center gap-3 p-4 border text-left transition-colors ${
+                    active ? 'border-stone-950 bg-stone-950 text-white' : 'border-stone-300 bg-white text-stone-900 hover:border-stone-950'
+                  }`}
+                >
+                  <span className={active ? 'text-amber-400' : 'text-stone-500'}>{opt.icon}</span>
+                  <span className="flex-1">
+                    <span className="block font-semibold">{opt.title}</span>
+                    <span className={`block text-xs ${active ? 'text-stone-300' : 'text-stone-500'}`}>{opt.note}</span>
+                  </span>
+                  <span className={`text-sm font-semibold tabular-nums ${active ? 'text-amber-400' : 'text-stone-700'}`}>{opt.price}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-5">
+            {needsAddress ? (
+              <AddressFields value={address} onChange={setAddress} />
+            ) : (
+              <div className="flex gap-3 border border-stone-300 bg-stone-50 p-4 text-sm text-stone-700">
+                <MapPin className="w-5 h-5 text-amber-700 shrink-0" />
+                <p>
+                  <span className="block font-semibold text-stone-950">Редакц</span>
+                  Баянзүрх дүүрэг, 6-р хороо, 21-р сургуулийн баруун талд. Ажлын өдрүүдэд. Лавлах: {ORDER_PHONE}
+                </p>
+              </div>
+            )}
+          </div>
+        </Step>
+
+        <Step n={4} title="Нэмэлт тайлбар" optional>
+          <textarea className={inputClass} rows={2} value={form.note} onChange={set('note')} placeholder="Байгууллагын нэр, хүргэлтийн тохиромжтой цаг г.м" />
+        </Step>
+
+        {/* What it comes to, and send */}
+        <div className="border-t-2 border-stone-950 pt-5 space-y-4">
+          {price != null ? (
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex justify-between text-stone-600">
+                <dt>«Амины орон сууц» каталог × {quantity}</dt>
+                <dd className="tabular-nums">{(price * quantity).toLocaleString()}₮</dd>
+              </div>
+              <div className="flex justify-between text-stone-600">
+                <dt>Хүргэлт</dt>
+                <dd className="tabular-nums">{deliveryFee ? `${deliveryFee.toLocaleString()}₮` : 'Үнэгүй'}</dd>
+              </div>
+              <div className="flex justify-between items-baseline pt-2 border-t border-stone-200">
+                <dt className="font-semibold text-stone-950">Нийт төлөх</dt>
+                <dd className="font-serif text-2xl font-bold text-stone-950 tabular-nums">{(price * quantity + deliveryFee).toLocaleString()}₮</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-sm text-stone-500">Үнэ, хүргэлтийн төлбөрийг баталгаажуулах үед мэдэгдэнэ</p>
+          )}
+
+          {error && <p className="text-sm font-medium text-red-600" role="alert">{error}</p>}
+
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 font-bold text-sm transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 font-bold transition-colors"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             <span>Захиалга илгээх</span>
           </button>
+          <p className="text-xs text-center text-stone-500">Илгээсний дараа нэхэмжлэх гарч ирнэ. Дансаар төлбөрөө шилжүүлнэ.</p>
         </div>
       </form>
     </section>
