@@ -13,6 +13,7 @@ import { AdminMagazineOrders } from './admin/MagazineOrders';
 import { AdminUsers } from './admin/Users';
 import { AdminOverview } from './admin/Overview';
 import { NotifyIssueButton } from './admin/NotifyIssue';
+import { RenewalReminders } from './admin/Renewals';
 import { SubscriptionOrder } from '../types';
 
 export type AdminTab = 'overview' | 'users' | 'digital_sales' | 'catalog_orders' | 'magazine_orders' | 'orders' | 'magazines' | 'add_magazine' | 'manual_sub';
@@ -221,6 +222,8 @@ function AdminOrders({ initialFilter = '' }: { initialFilter?: string }) {
 
 
   return (
+    <div className="space-y-4">
+    <RenewalReminders />
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-extrabold text-[#0F172A]">Захиалгууд</h2>
@@ -332,6 +335,7 @@ function AdminOrders({ initialFilter = '' }: { initialFilter?: string }) {
           </table>
         </div>
       )}
+    </div>
     </div>
   );
 }

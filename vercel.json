@@ -22,5 +22,11 @@
     "env": {
       "NODEJS_HELPERS": "0"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/renewals",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }

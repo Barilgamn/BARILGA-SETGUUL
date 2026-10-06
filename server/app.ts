@@ -9,6 +9,7 @@ import { otpMessage, sendSms, smsConfigured, verifySupabaseHook } from './sms.js
 import { registerAccountRoutes } from './account.js';
 import { allowSms, refusalMessage } from './smsGuard.js';
 import { registerStatsRoutes } from './stats.js';
+import { registerRenewalRoutes } from './renewals.js';
 import { emailConfigured } from './email.js';
 
 const app = express();
@@ -518,5 +519,6 @@ app.all('/api/qpay/callback', async (req, res) => {
 
 registerAccountRoutes(app, { bearer, appUrl });
 registerStatsRoutes(app, { bearer });
+registerRenewalRoutes(app, { bearer, appUrl });
 
 export default app;

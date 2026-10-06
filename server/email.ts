@@ -213,3 +213,48 @@ export function verifyEmail(opts: { to: string; base: string; link: string; name
     }),
   };
 }
+
+// «Таны захиалга … дуусна» — the renewal reminder
+export function renewalEmail(opts: {
+  to: string;
+  base: string;
+  name?: string;
+  planName: string;
+  endDate: string;
+  ended: boolean;
+  daysLeft: number;
+  renewLink: string;
+}): Email {
+  const { to, base, name, planName, endDate, ended, daysLeft, renewLink } = opts;
+  const hello = name ? `Сайн байна уу, ${escape(name)}.` : 'Сайн байна уу.';
+  const headline = ended ? 'Таны сэтгүүлийн захиалга дууслаа' : `Таны захиалга ${daysLeft} хоногийн дараа дуусна`;
+  const lead = ended
+    ? `Таны Барилга МН сэтгүүлийн <b>${escape(planName)}</b> ${escape(endDate)}-нд дууссан. Дараагийн дугааруудаа тасралтгүй авахын тулд захиалгаа сунгаарай.`
+    : `Таны Барилга МН сэтгүүлийн <b>${escape(planName)}</b> <b>${escape(endDate)}</b>-нд дуусна. Дараагийн дугааруудаа тасралтгүй авахын тулд одоо сунгаарай.`;
+  const body = `
+<tr><td style="padding:30px 32px 6px;font-family:Arial,Helvetica,sans-serif">
+<p style="margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#b45309">Захиалга сунгах</p>
+<h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:32px;color:#0c0a09">${headline}</h1>
+<p style="margin:0 0 10px;font-size:15px;line-height:23px;color:#57534e">${hello}</p>
+<p style="margin:0 0 22px;font-size:15px;line-height:23px;color:#57534e">${lead}</p>
+</td></tr>
+<tr><td style="padding:0 32px 10px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea">
+<tr><td style="padding:16px 18px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#1c1917">
+Жилийн захиалга <b>149,000₮</b> — сар бүр тусад нь авснаас <b>29,800₮ хямд</b>.<br>
+Захиалгын хугацаанд гарсан дугааруудаа цахимаар ч уншина.
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px 32px">${button(renewLink, 'Захиалгаа сунгах')}</td></tr>`;
+  return {
+    to,
+    subject: ended ? 'Сэтгүүлийн захиалга тань дууслаа — сунгах уу?' : `Захиалга тань ${daysLeft} хоногийн дараа дуусна — Барилга МН сэтгүүл`,
+    text: `${name ? `Сайн байна уу, ${name}.` : 'Сайн байна уу.'}\n\n${ended ? `Таны ${planName} ${endDate}-нд дууссан.` : `Таны ${planName} ${endDate}-нд дуусна.`}\nСунгах: ${renewLink}\n\nБарилга МН сэтгүүл · 9100-0233 · order@barilga.mn`,
+    html: layout({
+      base,
+      preheader: ended ? 'Захиалгаа сунгаад дараагийн дугааруудаа тасралтгүй аваарай.' : `${endDate}-нд дуусна — одоо сунгаарай.`,
+      body,
+      footnote: 'Та Барилга МН сэтгүүлийн захиалагч тул энэ сануулгыг хүлээн авлаа. Асуух зүйл байвал 9100-0233 руу залгана уу.',
+    }),
+  };
+}
