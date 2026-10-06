@@ -7,6 +7,7 @@ import { getMagazine } from '../lib/records';
 import { displayTitle } from '../lib/library';
 import { fullName, getMyProfile } from '../lib/account';
 import {
+  getReadAccess,
   checkQPay,
   createPurchase,
   findMyPurchase,
@@ -47,6 +48,14 @@ export function Buy() {
   useEffect(() => {
     if (issue && !issue.locked) navigate(`/read/${issue.id}`, { replace: true });
   }, [issue, navigate]);
+
+  // Already allowed to read it (bought before, or ordered it in print): open it
+  useEffect(() => {
+    if (!user || !issue?.locked) return;
+    getReadAccess(issue.id).then(access => {
+      if (access.kind === 'ok') navigate(`/read/${issue.id}`, { replace: true });
+    });
+  }, [user, issue, navigate]);
 
   useEffect(() => {
     if (!user || !issue?.locked) return;

@@ -176,6 +176,9 @@ export function MagazineDetail() {
                         Хэвлэмэл хувилбар захиалах · {magazine.pricePrint.toLocaleString()}₮
                       </Link>
                     )}
+                    {magazine.source !== 'heyzine' && magazine.pricePrint > 0 && (
+                      <p className="text-xs text-stone-500">Хэвлэмэлээр захиалсан бол төлбөр баталгаажмагц цахимаар ч уншина.</p>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-stone-600">Энэ хэвлэлийг цахимаар үнэгүй уншина.</p>

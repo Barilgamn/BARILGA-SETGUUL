@@ -55,3 +55,47 @@ export async function loadMagazineRows(): Promise<any[]> {
   if (error) throw new Error(`magazines: ${error.message}`);
   return data || [];
 }
+
+// Print buyers read their issues online too: a paid single-issue order of
+// this very issue, or a paid subscription (theirs, or one in their phone
+// number) running when the issue came out.
+// A subscription also covers the issue current when it started (the 31 days
+// before), since that is usually the first one delivered.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MONTH = 31 * 24 * 60 * 60 * 1000;
+
+export async function userHasPrintAccess(
+  userId: string,
+  issue: { issueId: string; publishedAt: number; isMagazine: boolean }
+): Promise<boolean> {
+  if (!admin) return false;
+  if (UUID.test(issue.issueId)) {
+    const { data } = await admin
+      .from('orders')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('magazine_id', issue.issueId)
+      .eq('payment_status', 'paid')
+      .limit(1);
+    if ((data || []).length) return true;
+  }
+  if (!issue.isMagazine || !issue.publishedAt) return false;
+  // Subscriptions typed in by the office («Гараар шивэх») carry only a phone
+  // number, so a subscription also counts when its phone is the login phone
+  const { data: account } = await admin.auth.admin.getUserById(userId);
+  const last8 = String(account?.user?.phone || '').replace(/\D/g, '').slice(-8);
+  const { data: paid, error } = await admin
+    .from('subscription_orders')
+    .select('user_id, phone, start_date, end_date, created_at')
+    .eq('payment_status', 'paid');
+  if (error) throw new Error(`subscription_orders: ${error.message}`);
+  // Phones are typed freely ("9911-2233", "+976 99112233"), so compare digits
+  const subs = (paid || []).filter(
+    s => s.user_id === userId || (last8.length === 8 && String(s.phone || '').replace(/\D/g, '').slice(-8) === last8)
+  );
+  return (subs || []).some(s => {
+    const start = Number(s.start_date ?? s.created_at);
+    const end = s.end_date == null ? Infinity : Number(s.end_date);
+    return issue.publishedAt >= start - MONTH && issue.publishedAt <= end;
+  });
+}

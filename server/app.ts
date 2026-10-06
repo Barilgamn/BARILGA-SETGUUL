@@ -3,7 +3,7 @@
 import express from 'express';
 import { PDFDocument } from 'pdf-lib';
 import cors from 'cors';
-import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken, userOwnsIssue } from './supabase.js';
+import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userHasPrintAccess, userIdFromToken, userOwnsIssue } from './supabase.js';
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
 import { otpMessage, sendSms, smsConfigured, verifySupabaseHook } from './sms.js';
 import { registerAccountRoutes } from './account.js';
@@ -255,7 +255,16 @@ app.get('/api/heyzine/flipbooks', async (_req, res) => {
 // price (0 = free) and the real flipbook link and cover.
 async function resolveIssue(
   id: string
-): Promise<{ issueId: string; price: number; link: string; cover: string; pdf: string } | null> {
+): Promise<{
+  issueId: string;
+  price: number;
+  link: string;
+  cover: string;
+  pdf: string;
+  // When it came out and whether it's a magazine issue, for subscribers
+  publishedAt: number;
+  isMagazine: boolean;
+} | null> {
   const rows = await loadMagazines();
   const fromRow = (row: any) => ({
     issueId: row.id,
@@ -263,6 +272,8 @@ async function resolveIssue(
     link: row.heyzine_link || '',
     cover: row.cover_image || '',
     pdf: row.pdf_url || pdfBesideThumb(row.cover_image),
+    publishedAt: Number(row.published_date ?? row.created_at) || 0,
+    isMagazine: (row.category || 'magazine') === 'magazine',
   });
   if (!id.startsWith('hz-')) {
     const row = rows.find(r => r.id === id);
@@ -274,7 +285,15 @@ async function resolveIssue(
   const key = flipbookKey(item.heyzineLink, item.coverImage);
   const row = key && rows.find(r => flipbookKey(r.heyzine_link, r.cover_image) === key);
   if (row) return fromRow(row);
-  return { issueId: item.id, price: prices.get(item.id) || 0, link: item.heyzineLink, cover: item.coverImage, pdf: item.pdfUrl };
+  return {
+    issueId: item.id,
+    price: prices.get(item.id) || 0,
+    link: item.heyzineLink,
+    cover: item.coverImage,
+    pdf: item.pdfUrl,
+    publishedAt: Number(item.publishedDate) || 0,
+    isMagazine: item.category === 'magazine',
+  };
 }
 
 // Heyzine keeps the uploaded PDF next to its thumbnail: ".../<hash>.pdf-thumb.jpg"
@@ -390,7 +409,11 @@ app.get('/api/read/:id', async (req, res) => {
 
     const uid = await userIdFromToken(bearer(req));
     if (!uid) return res.status(401).json({ error: 'login-required', price: issue.price });
-    const allowed = (await userOwnsIssue(uid, issue.issueId)) || (await isAdminUser(uid));
+    // Bought online, ordered in print (single issue or subscription), or an admin
+    const allowed =
+      (await userOwnsIssue(uid, issue.issueId)) ||
+      (await userHasPrintAccess(uid, issue)) ||
+      (await isAdminUser(uid));
     if (!allowed) return res.status(402).json({ error: 'payment-required', price: issue.price });
     return res.json({ heyzineLink: issue.link });
   } catch (error: any) {
