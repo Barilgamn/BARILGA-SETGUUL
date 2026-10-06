@@ -81,7 +81,7 @@ export function Login() {
   // Callers pass the way back either as router state or as ?redirect=
   const redirectParam = new URLSearchParams(location.search).get('redirect');
   const returnTo =
-    location.state?.returnTo || (redirectParam && redirectParam.startsWith('/') ? redirectParam : '/profile');
+    location.state?.returnTo || (redirectParam && /^\/(?![\/\\])/.test(redirectParam) ? redirectParam : '/profile');
 
   const sendCode = async (phone: string) => {
     if (secondsLeft(phone) > 0) return;

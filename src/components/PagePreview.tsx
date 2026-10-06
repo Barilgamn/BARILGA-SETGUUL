@@ -10,7 +10,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 // PDF, so theirs comes from /api/preview: a copy of just the first pages.
 
 const PREVIEW_PAGES = 6;
-const PDFJS_VERSION = '5.7.284';
+const PDFJS_VERSION = '6.4.299';
 
 type PdfDoc = { numPages: number; getPage: (n: number) => Promise<any> };
 let pdfjsPromise: Promise<any> | null = null;

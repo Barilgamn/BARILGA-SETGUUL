@@ -14,7 +14,14 @@ import { emailConfigured } from './email.js';
 
 const app = express();
 
-app.use(cors());
+// Browsers may call the API only from our own sites. Server-to-server calls
+// (Supabase hook, QPay, Vercel Cron) send no Origin and are unaffected.
+const ALLOWED_ORIGINS = [
+  /^https:\/\/barilga-setguul(-[a-z0-9-]+)?\.vercel\.app$/,
+  /^https:\/\/([a-z0-9-]+\.)?barilga\.mn$/,
+  /^http:\/\/localhost(:\d+)?$/,
+];
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || ALLOWED_ORIGINS.some(r => r.test(origin))) }));
 
 // Supabase Auth "Send SMS" hook: Supabase generates the login code and asks us
 // to deliver it through the operator gateway. Registered before express.json()

@@ -234,7 +234,11 @@ function OrderForm() {
       document.getElementById('order')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       console.error('Failed to place catalog order:', err);
-      setError('Захиалга илгээхэд алдаа гарлаа. Дахин оролдох эсвэл ' + ORDER_PHONE + ' руу залгана уу.');
+      setError(
+        /RATE_LIMIT/.test(String((err as any)?.message))
+          ? 'Энэ дугаараас саяхан хэд хэдэн захиалга ирсэн байна. Түр хүлээгээд дахин оролдох эсвэл ' + ORDER_PHONE + ' руу залгана уу.'
+          : 'Захиалга илгээхэд алдаа гарлаа. Дахин оролдох эсвэл ' + ORDER_PHONE + ' руу залгана уу.'
+      );
     } finally {
       setSubmitting(false);
     }

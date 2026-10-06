@@ -1,5 +1,6 @@
 // Admin overview («Тойм»): sign-ins, today's orders, what's paid and what's
 // waiting, revenue, and reader opens. Also the endpoint that records an open.
+import crypto from 'node:crypto';
 import type express from 'express';
 import { admin, isAdminUser, userIdFromToken } from './supabase.js';
 
@@ -19,8 +20,21 @@ export function registerStatsRoutes(app: express.Express, { bearer }: Helpers) {
       if (!issueId) return res.status(400).json({ error: 'issue-required' });
       const title = String(req.body?.title || '').slice(0, 300);
       const uid = await userIdFromToken(bearer(req));
-      // Before migration 0009 the table is missing; reading must never break
-      await admin.from('issue_views').insert({ issue_id: issueId, title, user_id: uid });
+      // Who is reading: the account, or a hash of the network address and
+      // browser (never stored raw), so reloads can't inflate the count
+      const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+      const viewer = uid || `v:${crypto.createHash('sha256').update(`${ip}|${req.headers['user-agent'] || ''}`).digest('hex').slice(0, 24)}`;
+      const { data: recent, error: lookupError } = await admin
+        .from('issue_views')
+        .select('id')
+        .eq('issue_id', issueId)
+        .eq('viewer', viewer)
+        .gte('viewed_at', Date.now() - 30 * 60 * 1000)
+        .limit(1);
+      if (!lookupError && recent?.length) return res.status(204).end();
+      // Before migration 0012 there is no viewer column; count without it
+      const { error } = await admin.from('issue_views').insert({ issue_id: issueId, title, user_id: uid, ...(lookupError ? {} : { viewer }) });
+      if (error) console.error('Recording a view failed:', error.message);
       return res.status(204).end();
     } catch {
       return res.status(204).end();
