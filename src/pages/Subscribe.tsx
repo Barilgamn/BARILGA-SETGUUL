@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { FormEvent, Fragment, useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
 import { createSubscription, SubscriptionInput } from '../lib/records';
 import { getBankSettings } from '../lib/purchases';
 import { CONTACT_PHONE, CONTACT_PHONE_TEL } from '../lib/bank';
 import { Invoice, transferReference } from '../components/Invoice';
-import { PLAN_PRICES, PlanId, planSavings } from '../lib/plans';
+import { PLAN_PRICES, PlanId, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 import { BankSettings } from '../types';
 import { BankDetails } from '../components/BankDetails';
 import { AddressFields } from '../components/AddressFields';
 import { fullName, getMyProfile } from '../lib/account';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
-import { BookOpen, MapPin, CreditCard, CheckCircle, ChevronRight, Loader2, FileText } from 'lucide-react';
+import { Building2, CheckCircle, ChevronRight, Loader2, FileText, User } from 'lucide-react';
+import { ChoiceCard, Field, fieldClass, FormStep, OrderSummary } from '../components/OrderForm';
 
 const PLANS = {
-  'quarterly': { name: 'Улирлын захиалга (3 дугаар)', price: PLAN_PRICES.quarterly.price },
-  'half-year': { name: 'Хагас жилийн (6 дугаар)', price: PLAN_PRICES['half-year'].price },
-  'yearly': { name: 'Жилийн захиалга (12 дугаар)', price: PLAN_PRICES.yearly.price },
+  quarterly: { name: 'Улирлын багц (3 дугаар)', short: 'Улирлын багц · 3 дугаар', price: PLAN_PRICES.quarterly.price },
+  'half-year': { name: 'Хагас жилийн багц (6 дугаар)', short: 'Хагас жилийн багц · 6 дугаар', price: PLAN_PRICES['half-year'].price },
+  yearly: { name: 'Жилийн багц (12 дугаар)', short: 'Жилийн багц · 12 дугаар', price: PLAN_PRICES.yearly.price },
 };
 
 const DRAFT_KEY = 'subscribe-draft';
@@ -93,22 +94,29 @@ export function Subscribe() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const [formError, setFormError] = useState('');
   const handleNext = () => {
     if (step === 1) {
-      if (!formData.fullName || !formData.phone || !addressComplete(formData.address)) {
-        alert(
+      if (!formData.fullName.trim() || formData.phone.replace(/\D/g, '').length < 8) {
+        setFormError('Овог нэр, утасны дугаараа бөглөнө үү.');
+        return;
+      }
+      if (!addressComplete(formData.address)) {
+        setFormError(
           formData.address.region === 'ub'
-            ? 'Нэр, утас, дүүрэг, хороо болон дэлгэрэнгүй хаягаа бөглөнө үү'
-            : 'Нэр, утас, аймаг, сум болон дэлгэрэнгүй хаягаа бөглөнө үү'
+            ? 'Хүргэлтийн дүүрэг, хороо болон дэлгэрэнгүй хаягаа бөглөнө үү.'
+            : 'Хүргэлтийн аймаг, сум болон дэлгэрэнгүй хаягаа бөглөнө үү.'
         );
         return;
       }
-      if (formData.ebarimtType === 'company' && (!formData.companyName || !formData.registerNumber)) {
-        alert('Байгууллагын мэдээллийг бүрэн бөглөнө үү');
+      if (formData.ebarimtType === 'company' && (!formData.companyName.trim() || !formData.registerNumber.trim())) {
+        setFormError('Байгууллагын нэр, регистрийн дугаарыг бөглөнө үү.');
         return;
       }
     }
+    setFormError('');
     setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = async () => {
@@ -151,183 +159,180 @@ export function Subscribe() {
     return <div className="text-center py-20">Сонгосон багц олдсонгүй</div>;
   }
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="text-center mb-10">
-        <span className="text-xs text-amber-600 font-bold block mb-1">
-          Албан ёсны захиалга
-        </span>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900 mb-2">Сэтгүүл захиалах</h1>
-        <p className="text-stone-500 text-sm">Барилгын салбарын тэргүүлэх мэдээлэл, үнэ ханшийн судалгааг цаг алдалгүй аваарай</p>
-      </div>
+  const plan = PLANS[formData.plan as keyof typeof PLANS];
+  const STAGES = ['Захиалга', 'Төлбөр', 'Баталгаажуулалт'];
 
-      {/* Stepper */}
-      <div className="flex items-center justify-center mb-12">
-        <div className={`flex items-center ${step >= 1 ? 'text-[#F59E0B]' : 'text-slate-400'}`}>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold border-2 ${step >= 1 ? 'border-[#F59E0B] bg-amber-50' : 'border-slate-300'}`}>1</div>
-          <span className="ml-3 font-bold hidden sm:inline">Хүргэлтийн мэдээлэл</span>
-        </div>
-        <div className="w-16 sm:w-24 h-1 mx-4 bg-slate-200">
-          <div className={`h-full ${step >= 2 ? 'bg-[#F59E0B]' : 'bg-transparent'} transition-all`}></div>
-        </div>
-        <div className={`flex items-center ${step >= 2 ? 'text-[#F59E0B]' : 'text-slate-400'}`}>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold border-2 ${step >= 2 ? 'border-[#F59E0B] bg-amber-50' : 'border-slate-300'}`}>2</div>
-          <span className="ml-3 font-bold hidden sm:inline">Төлбөр төлөх</span>
-        </div>
-        <div className="w-16 sm:w-24 h-1 mx-4 bg-slate-200">
-          <div className={`h-full ${step >= 3 ? 'bg-[#F59E0B]' : 'bg-transparent'} transition-all`}></div>
-        </div>
-        <div className={`flex items-center ${step >= 3 ? 'text-green-500' : 'text-slate-400'}`}>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold border-2 ${step >= 3 ? 'border-green-500 bg-green-50' : 'border-slate-300'}`}><CheckCircle className="h-5 w-5" /></div>
-          <span className="ml-3 font-bold hidden sm:inline">Баталгаажуулах</span>
-        </div>
-      </div>
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Where in the three stages we are */}
+      <ol className="flex items-center justify-center gap-2 text-xs sm:text-sm print:hidden" aria-label="Захиалгын явц">
+        {STAGES.map((label, i) => (
+          <li key={label} className="flex items-center gap-2">
+            {i > 0 && <span className="w-6 sm:w-10 h-px bg-stone-300" />}
+            <span className={step === i + 1 ? 'font-semibold text-stone-950' : step > i + 1 ? 'text-emerald-700' : 'text-stone-400'}>
+              {step > i + 1 ? '✓ ' : ''}
+              {label}
+            </span>
+          </li>
+        ))}
+      </ol>
 
       {step === 1 && (
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-2 space-y-6">
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-xl font-bold text-[#0F172A] mb-6 flex items-center"><BookOpen className="mr-2 h-5 w-5 text-[#F59E0B]"/> Багцын сонголт</h2>
-              <div className="grid sm:grid-cols-3 gap-4">
-                {Object.entries(PLANS).map(([key, plan]) => (
-                  <label key={key} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col transition-all ${formData.plan === key ? 'border-[#0F172A] bg-slate-50 shadow-sm' : 'border-slate-100 hover:border-slate-300'}`}>
-                    <input type="radio" name="plan" value={key} checked={formData.plan === key} onChange={handleChange} className="sr-only" />
-                    <span className="font-bold text-[#0F172A] text-sm mb-2">{plan.name}</span>
-                    <span className="text-slate-400 text-xs line-through mt-auto tabular-nums">
-                      {planSavings(key as PlanId).separately.toLocaleString()}₮
-                    </span>
-                    <span className="text-[#0F172A] font-extrabold tabular-nums">{plan.price.toLocaleString()}₮</span>
-                    <span className={`mt-1 text-xs font-semibold ${key === 'yearly' ? 'text-emerald-700' : 'text-slate-500'}`}>
-                      {planSavings(key as PlanId).saved.toLocaleString()}₮ хэмнэнэ
-                      {key === 'yearly' && ' · хамгийн хямд'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
+        <section className="bg-white rounded-2xl sm:rounded-3xl border border-stone-200 p-6 sm:p-10 shadow-sm">
+          <div className="mb-8">
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">Сэтгүүл захиалах</h1>
+            <p className="text-sm text-stone-500 mt-1">Барилга МН сэтгүүлийг сар бүр гэр, оффисоороо хүлээн аваарай.</p>
+          </div>
 
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-xl font-bold text-[#0F172A] mb-6 flex items-center"><MapPin className="mr-2 h-5 w-5 text-[#F59E0B]"/> Хүргэлтийн мэдээлэл</h2>
-              <div className="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Овог, нэр</label>
-                  <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Холбогдох утас</label>
-                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" required />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Имэйл хаяг</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" />
-                </div>
-                <div className="sm:col-span-2">
-                  <AddressFields value={formData.address} onChange={address => setFormData({ ...formData, address })} />
-                </div>
+          <form
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              handleNext();
+            }}
+            className="space-y-8"
+            noValidate
+          >
+            <FormStep n={1} title="Багц сонгох">
+              <div className="grid grid-cols-1 gap-3 pt-2" role="radiogroup" aria-label="Багц">
+                {(Object.keys(PLANS) as PlanId[]).map(key => {
+                  const p = PLANS[key];
+                  const save = planSavings(key);
+                  return (
+                    <Fragment key={key}>
+                    <ChoiceCard
+                      selected={formData.plan === key}
+                      onSelect={() => setFormData({ ...formData, plan: key })}
+                      title={p.short}
+                      note={
+                        <>
+                          <span className="line-through">{save.separately.toLocaleString()}₮</span> · {save.percent}% хямд
+                        </>
+                      }
+                      aside={`${p.price.toLocaleString()}₮`}
+                      badge={key === 'yearly' ? 'Хамгийн хямд' : undefined}
+                    />
+                    </Fragment>
+                  );
+                })}
               </div>
-            </div>
+              <p className="mt-2 text-xs text-stone-500">Сар бүр тусад нь авбал нэг дугаар {SINGLE_ISSUE_PRICE.toLocaleString()}₮. Захиалгын хугацаанд гарсан дугааруудаа цахимаар ч уншина.</p>
+            </FormStep>
 
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-xl font-bold text-[#0F172A] mb-6 flex items-center"><CreditCard className="mr-2 h-5 w-5 text-[#F59E0B]"/> И-Баримт</h2>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <label className="flex items-center cursor-pointer px-4 py-3 rounded-xl border border-slate-200 has-[:checked]:border-[#0F172A] has-[:checked]:bg-slate-50">
-                  <input type="radio" name="ebarimtType" value="personal" checked={formData.ebarimtType === 'personal'} onChange={handleChange} className="text-[#0F172A] focus:ring-[#0F172A] h-4 w-4" />
-                  <span className="ml-2 font-medium text-slate-700">Хувь хүн</span>
-                </label>
-                <label className="flex items-center cursor-pointer px-4 py-3 rounded-xl border border-slate-200 has-[:checked]:border-[#0F172A] has-[:checked]:bg-slate-50">
-                  <input type="radio" name="ebarimtType" value="company" checked={formData.ebarimtType === 'company'} onChange={handleChange} className="text-[#0F172A] focus:ring-[#0F172A] h-4 w-4" />
-                  <span className="ml-2 font-medium text-slate-700">Байгууллага</span>
-                </label>
+            <FormStep n={2} title="Таны мэдээлэл">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Овог, нэр">
+                  <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className={fieldClass} autoComplete="name" placeholder="Бат Болд" />
+                </Field>
+                <Field label="Утасны дугаар">
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className={fieldClass} autoComplete="tel" placeholder="9911 2233" />
+                </Field>
+                <Field label={<>И-мэйл <span className="font-normal text-stone-400">(заавал биш)</span></>} className="sm:col-span-2">
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className={fieldClass} autoComplete="email" placeholder="name@company.mn" />
+                </Field>
               </div>
+            </FormStep>
 
+            <FormStep n={3} title="Хүргэлтийн хаяг">
+              <AddressFields value={formData.address} onChange={address => setFormData({ ...formData, address })} />
+            </FormStep>
+
+            <FormStep n={4} title="И-баримт">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="И-баримт">
+                <ChoiceCard
+                  selected={formData.ebarimtType === 'personal'}
+                  onSelect={() => setFormData({ ...formData, ebarimtType: 'personal' })}
+                  icon={<User className="w-5 h-5" />}
+                  title="Хувь хүн"
+                  note="Утасны дугаараар"
+                />
+                <ChoiceCard
+                  selected={formData.ebarimtType === 'company'}
+                  onSelect={() => setFormData({ ...formData, ebarimtType: 'company' })}
+                  icon={<Building2 className="w-5 h-5" />}
+                  title="Байгууллага"
+                  note="Регистрийн дугаараар"
+                />
+              </div>
               {formData.ebarimtType === 'company' && (
-                <div className="grid sm:grid-cols-2 gap-5 p-5 bg-slate-50 rounded-xl border border-slate-200">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Байгууллагын РД</label>
-                    <input type="text" name="registerNumber" value={formData.registerNumber} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" required={formData.ebarimtType === 'company'} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Байгууллагын нэр</label>
-                    <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#0F172A]" required={formData.ebarimtType === 'company'} />
-                  </div>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Байгууллагын нэр">
+                    <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} className={fieldClass} />
+                  </Field>
+                  <Field label="Регистрийн дугаар">
+                    <input type="text" name="registerNumber" value={formData.registerNumber} onChange={handleChange} className={fieldClass} inputMode="numeric" />
+                  </Field>
                 </div>
               )}
-            </div>
-          </div>
+            </FormStep>
 
-          <div>
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 sticky top-24">
-              <h3 className="font-bold text-lg text-[#0F172A] mb-4">Захиалгын мэдээлэл</h3>
-              <div className="space-y-3 mb-6 pb-6 border-b border-slate-200">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Сонгосон багц:</span>
-                  <span className="font-bold text-[#0F172A]">{PLANS[formData.plan as keyof typeof PLANS].name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Үнэ:</span>
-                  <span className="font-bold text-[#0F172A]">{PLANS[formData.plan as keyof typeof PLANS].price.toLocaleString()}₮</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Хүргэлт:</span>
-                  <span className="font-bold text-green-600">Үнэгүй</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-end mb-8">
-                <span className="font-bold text-slate-700">Нийт төлөх:</span>
-                <span className="text-2xl font-extrabold text-[#e11d48]">{PLANS[formData.plan as keyof typeof PLANS].price.toLocaleString()}₮</span>
-              </div>
-              
-              <button onClick={handleNext} className="w-full bg-[#0F172A] text-white py-4 rounded-xl font-bold flex items-center justify-center hover:bg-slate-800 transition-colors shadow-lg">
-                Үргэлжлүүлэх <ChevronRight className="ml-2 h-5 w-5" />
+            {/* What it comes to, and on to payment */}
+            <div className="border-t-2 border-stone-950 pt-5 space-y-4">
+              <OrderSummary
+                lines={[
+                  { label: `Барилга МН сэтгүүл — ${plan.name}`, value: `${plan.price.toLocaleString()}₮` },
+                  { label: 'Хүргэлт (Улаанбаатар)', value: 'Үнэгүй' },
+                ]}
+                total={`${plan.price.toLocaleString()}₮`}
+              />
+              {formError && <p className="text-sm font-medium text-red-600" role="alert">{formError}</p>}
+              <button
+                type="submit"
+                className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold transition-colors"
+              >
+                Үргэлжлүүлэх <ChevronRight className="w-5 h-5" />
               </button>
+              <p className="text-xs text-center text-stone-500">Дараагийн алхамд нэхэмжлэх үүсгэж, дансаар төлнө.</p>
             </div>
-          </div>
-        </div>
+          </form>
+        </section>
       )}
 
       {step === 2 && (
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-sm">
-            <h2 className="text-2xl font-bold text-[#0F172A] mb-2 text-center">Төлбөр</h2>
-            <p className="text-slate-500 mb-6 text-center">Нэхэмжлэх үүсгээд дансаар шилжүүлнэ. Төлбөр орсны дараа захиалга идэвхжинэ.</p>
-
-            <div className="text-center mb-8">
-              <p className="text-sm text-slate-500">{PLANS[formData.plan as keyof typeof PLANS].name}</p>
-              <p className="text-4xl font-extrabold text-[#0F172A] tabular-nums">
-                {PLANS[formData.plan as keyof typeof PLANS].price.toLocaleString()}₮
-              </p>
-            </div>
-
-            <div className="bg-[#EDE8DF] p-5 sm:p-6 mb-8 text-left space-y-3">
-              <h4 className="font-bold text-[#0F172A]">Шууд шилжүүлэх бол</h4>
-              {!bank ? (
-                <Loader2 className="animate-spin h-5 w-5 text-slate-400" />
-              ) : (
-                <BankDetails bank={bank} reference={reference} />
-              )}
-              <p className="text-sm text-slate-600">Холбогдох утас: <a href={CONTACT_PHONE_TEL} className="font-semibold text-[#0F172A]">{CONTACT_PHONE}</a></p>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row gap-3">
-              <button onClick={() => setStep(1)} className="sm:flex-1 bg-white text-slate-700 border border-slate-300 py-4 font-bold hover:bg-slate-50 transition-colors">
-                Буцах
-              </button>
-              <button onClick={handleSubmit} disabled={loading} className="sm:flex-[2] bg-[#0F172A] text-white py-4 font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-70">
-                {loading ? <><Loader2 className="animate-spin h-5 w-5" /> Уншиж байна...</> : <><FileText className="h-5 w-5" /> Нэхэмжлэх үүсгэх</>}
-              </button>
-            </div>
+        <section className="bg-white rounded-2xl sm:rounded-3xl border border-stone-200 p-6 sm:p-10 shadow-sm space-y-6">
+          <div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">Төлбөр</h1>
+            <p className="text-sm text-stone-500 mt-1">Нэхэмжлэх үүсгээд дансаар шилжүүлнэ. Төлбөр орсны дараа захиалга идэвхжинэ.</p>
           </div>
-        </div>
+
+          <OrderSummary
+            lines={[
+              { label: `Барилга МН сэтгүүл — ${plan.name}`, value: `${plan.price.toLocaleString()}₮` },
+              { label: 'Хүргэлт', value: 'Үнэгүй' },
+            ]}
+            total={`${plan.price.toLocaleString()}₮`}
+          />
+
+          <div className="bg-[#EDE8DF] p-5 sm:p-6 space-y-3">
+            <p className="font-semibold text-stone-950">Шилжүүлэх данс</p>
+            {!bank ? <Loader2 className="animate-spin h-5 w-5 text-stone-400" /> : <BankDetails bank={bank} reference={reference} />}
+            <p className="text-sm text-stone-600">
+              Лавлах: <a href={CONTACT_PHONE_TEL} className="font-semibold text-stone-950">{CONTACT_PHONE}</a>
+            </p>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3">
+            <button onClick={() => setStep(1)} className="sm:flex-1 py-4 border border-stone-300 text-stone-700 font-semibold hover:border-stone-950 transition-colors">
+              Буцах
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="sm:flex-[2] py-4 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="animate-spin h-5 w-5" /> : <FileText className="h-5 w-5" />}
+              {loading ? 'Илгээж байна…' : 'Нэхэмжлэх үүсгэх'}
+            </button>
+          </div>
+          {!user && <p className="text-xs text-center text-stone-500">Нэхэмжлэх үүсгэхийн өмнө утасны дугаараараа нэвтэрнэ. Бөглөсөн мэдээлэл хадгалагдана.</p>}
+        </section>
       )}
 
       {step === 3 && (
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="space-y-6">
           <div className="text-center space-y-2 print:hidden">
-            <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A]">Захиалга хүлээн авлаа</h2>
-            <p className="text-slate-600">
-              Доорх нэхэмжлэхийн дагуу төлбөрөө шилжүүлнэ үү. Төлбөр орсны дараа захиалга идэвхжиж, бид тантай холбогдоно.
-            </p>
+            <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto" />
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold text-stone-950">Захиалга хүлээн авлаа</h1>
+            <p className="text-stone-600">Доорх нэхэмжлэхийн дагуу төлбөрөө шилжүүлнэ үү. Төлбөр орсны дараа захиалга идэвхжиж, бид тантай холбогдоно.</p>
           </div>
 
           <Invoice
@@ -339,13 +344,13 @@ export function Subscribe() {
               company: formData.ebarimtType === 'company' ? formData.companyName : undefined,
               registerNumber: formData.ebarimtType === 'company' ? formData.registerNumber : undefined,
             }}
-            items={[{ label: `Барилга МН сэтгүүл — ${PLANS[formData.plan as keyof typeof PLANS].name}`, amount: PLANS[formData.plan as keyof typeof PLANS].price }]}
+            items={[{ label: `Барилга МН сэтгүүл — ${plan.name}`, amount: plan.price }]}
             reference={reference}
             note="Төлбөр орсныг шалгаад захиалгыг идэвхжүүлж, хүргэлтийн мэдээллийг утсаар мэдэгдэнэ."
           />
 
-          <button onClick={() => navigate('/profile')} className="print:hidden w-full sm:w-auto px-8 py-3.5 bg-[#0F172A] text-white font-bold hover:bg-slate-800 transition-colors">
-            Миний захиалгууд руу очих
+          <button onClick={() => navigate('/profile')} className="print:hidden w-full sm:w-auto px-8 py-3.5 bg-stone-950 text-white font-semibold hover:bg-stone-800 transition-colors">
+            Миний хэвлэлүүд рүү
           </button>
         </div>
       )}

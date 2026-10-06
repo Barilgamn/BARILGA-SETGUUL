@@ -169,7 +169,7 @@ export function Layout() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 pb-12 border-b border-stone-800">
             {/* Column 1: Brand & Colophon */}
             <div className="space-y-4 col-span-2 md:col-span-1">
-              <Link to="/" onClick={goHome} className="inline-flex items-center gap-3" aria-label="Барилга.МН цахим номын сан">
+              <Link to="/" onClick={goHome} className="inline-flex flex-wrap items-center gap-x-3 gap-y-2" aria-label="Барилга.МН цахим номын сан">
                 <img src="/images/barilga-mn-logo-light.svg" alt="Барилга.МН" className="h-8 w-auto" />
                 <span className="border-l border-stone-700 pl-3 text-[11px] font-semibold uppercase tracking-[0.12em] whitespace-nowrap text-stone-400">Цахим номын сан</span>
               </Link>

@@ -1,9 +1,10 @@
-import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, Loader2, MapPin, Minus, Phone, Plus, Store, Truck } from 'lucide-react';
 import { CatalogOrder } from '../types';
 import { CatalogPricing, createCatalogOrder, formatCode, getCatalogPricing, orderTotal } from '../lib/catalogOrders';
 import { AddressFields } from '../components/AddressFields';
+import { ChoiceCard, fieldClass, FormStep, OrderSummary } from '../components/OrderForm';
 import { addressColumns, addressComplete, DeliveryAddress, emptyAddress } from '../lib/places';
 import { Invoice, transferReference } from '../components/Invoice';
 import { displayPhone, useAuth } from '../contexts/AuthContext';
@@ -136,22 +137,6 @@ export function HouseCatalog() {
   );
 }
 
-// One numbered part of the order form: the number on the left, its title
-// and fields beside it
-function Step({ n, title, optional = false, children }: { n: number; title: string; optional?: boolean; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={title} className="flex gap-3 sm:gap-4">
-      <span className="w-8 h-8 shrink-0 flex items-center justify-center bg-stone-950 text-white text-sm font-bold tabular-nums">{n}</span>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-stone-950 mb-3 leading-8">
-          {title} {optional && <span className="font-normal text-stone-400">(заавал биш)</span>}
-        </p>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function OrderForm() {
   const [pricing, setPricing] = useState<CatalogPricing>({ price: null, deliveryFee: 0 });
   const price = pricing.price;
@@ -244,8 +229,7 @@ function OrderForm() {
     }
   };
 
-  const inputClass =
-    'w-full px-4 py-3 border border-stone-300 bg-white text-base text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-950 focus:ring-2 focus:ring-stone-950/10';
+  const inputClass = fieldClass;
 
   if (placed) {
     const total = orderTotal(placed);
@@ -310,7 +294,7 @@ function OrderForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8" noValidate>
-        <Step n={1} title="Таны мэдээлэл">
+        <FormStep n={1} title="Таны мэдээлэл">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block space-y-1.5">
               <span className="text-sm font-semibold text-stone-800">Овог, нэр</span>
@@ -321,9 +305,9 @@ function OrderForm() {
               <input className={inputClass} value={form.phone} onChange={set('phone')} type="tel" inputMode="numeric" autoComplete="tel" placeholder="9911 2233" />
             </label>
           </div>
-        </Step>
+        </FormStep>
 
-        <Step n={2} title="Тоо ширхэг">
+        <FormStep n={2} title="Тоо ширхэг">
           <div className="flex flex-wrap items-center gap-4">
             <div className="inline-flex items-center border border-stone-300 bg-white">
               <button type="button" aria-label="Хасах" onClick={() => setQuantity(q => Math.max(1, q - 1))} className="p-3.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" disabled={quantity <= 1}>
@@ -340,35 +324,26 @@ function OrderForm() {
               </p>
             )}
           </div>
-        </Step>
+        </FormStep>
 
-        <Step n={3} title="Хүлээн авах">
+        <FormStep n={3} title="Хүлээн авах">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Хүлээн авах арга">
-            {([
-              { value: 'delivery', icon: <Truck className="w-5 h-5" />, title: 'Хүргүүлэх', note: 'Гэр, оффис руу', price: pricing.deliveryFee ? `+${pricing.deliveryFee.toLocaleString()}₮` : 'Үнэгүй' },
-              { value: 'pickup', icon: <Store className="w-5 h-5" />, title: 'Очиж авах', note: 'Редакцаас', price: 'Үнэгүй' },
-            ] as const).map(opt => {
-              const active = form.deliveryMethod === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => setForm(f => ({ ...f, deliveryMethod: opt.value }))}
-                  className={`flex items-center gap-3 p-4 border text-left transition-colors ${
-                    active ? 'border-stone-950 bg-stone-950 text-white' : 'border-stone-300 bg-white text-stone-900 hover:border-stone-950'
-                  }`}
-                >
-                  <span className={active ? 'text-amber-400' : 'text-stone-500'}>{opt.icon}</span>
-                  <span className="flex-1">
-                    <span className="block font-semibold">{opt.title}</span>
-                    <span className={`block text-xs ${active ? 'text-stone-300' : 'text-stone-500'}`}>{opt.note}</span>
-                  </span>
-                  <span className={`text-sm font-semibold tabular-nums ${active ? 'text-amber-400' : 'text-stone-700'}`}>{opt.price}</span>
-                </button>
-              );
-            })}
+            <ChoiceCard
+              selected={form.deliveryMethod === 'delivery'}
+              onSelect={() => setForm(f => ({ ...f, deliveryMethod: 'delivery' }))}
+              icon={<Truck className="w-5 h-5" />}
+              title="Хүргүүлэх"
+              note="Гэр, оффис руу"
+              aside={pricing.deliveryFee ? `+${pricing.deliveryFee.toLocaleString()}₮` : 'Үнэгүй'}
+            />
+            <ChoiceCard
+              selected={form.deliveryMethod === 'pickup'}
+              onSelect={() => setForm(f => ({ ...f, deliveryMethod: 'pickup' }))}
+              icon={<Store className="w-5 h-5" />}
+              title="Очиж авах"
+              note="Редакцаас"
+              aside="Үнэгүй"
+            />
           </div>
 
           <div className="mt-5">
@@ -384,29 +359,22 @@ function OrderForm() {
               </div>
             )}
           </div>
-        </Step>
+        </FormStep>
 
-        <Step n={4} title="Нэмэлт тайлбар" optional>
+        <FormStep n={4} title="Нэмэлт тайлбар" optional>
           <textarea className={inputClass} rows={2} value={form.note} onChange={set('note')} placeholder="Байгууллагын нэр, хүргэлтийн тохиромжтой цаг г.м" />
-        </Step>
+        </FormStep>
 
         {/* What it comes to, and send */}
         <div className="border-t-2 border-stone-950 pt-5 space-y-4">
           {price != null ? (
-            <dl className="space-y-1.5 text-sm">
-              <div className="flex justify-between text-stone-600">
-                <dt>«Амины орон сууц» каталог × {quantity}</dt>
-                <dd className="tabular-nums">{(price * quantity).toLocaleString()}₮</dd>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <dt>Хүргэлт</dt>
-                <dd className="tabular-nums">{deliveryFee ? `${deliveryFee.toLocaleString()}₮` : 'Үнэгүй'}</dd>
-              </div>
-              <div className="flex justify-between items-baseline pt-2 border-t border-stone-200">
-                <dt className="font-semibold text-stone-950">Нийт төлөх</dt>
-                <dd className="font-serif text-2xl font-bold text-stone-950 tabular-nums">{(price * quantity + deliveryFee).toLocaleString()}₮</dd>
-              </div>
-            </dl>
+            <OrderSummary
+              lines={[
+                { label: `«Амины орон сууц» каталог × ${quantity}`, value: `${(price * quantity).toLocaleString()}₮` },
+                { label: 'Хүргэлт', value: deliveryFee ? `${deliveryFee.toLocaleString()}₮` : 'Үнэгүй' },
+              ]}
+              total={`${(price * quantity + deliveryFee).toLocaleString()}₮`}
+            />
           ) : (
             <p className="text-sm text-stone-500">Үнэ, хүргэлтийн төлбөрийг баталгаажуулах үед мэдэгдэнэ</p>
           )}
