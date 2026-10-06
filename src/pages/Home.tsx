@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, ReactNode } from 'react';
+import { Fragment, useState, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CATALOG_COVER } from './HouseCatalog';
 import { CATEGORIES, displayTitle, issueNo, readHref, useLibrary } from '../lib/library';
@@ -9,37 +9,14 @@ import { ArrowRight, ArrowUpRight, Search, Check } from 'lucide-react';
 import { PLAN_PRICES, planSavings, SINGLE_ISSUE_PRICE } from '../lib/plans';
 import { CONTACT_EMAIL } from '../lib/bank';
 
+// The three subscription plans; what they share is listed once under them
 const PLANS = [
-  {
-    id: 'quarterly',
-    name: 'Улирлын багц',
-    ...PLAN_PRICES.quarterly,
-    blurb: 'Улирлын барилгын төсөл, судалгааны мэдээллийг цаг алдалгүй авах хүсэлтэй мэргэжилтнүүдэд.',
-    features: ['3 сарын хэвлэмэл сэтгүүл', 'Улаанбаатар хот дотор хүргэлттэй', 'Цахимаар унших эрх'],
-    cta: 'Улирлын багц сонгох',
-    featured: false,
-  },
-  {
-    id: 'half-year',
-    name: 'Хагас жилийн багц',
-    ...PLAN_PRICES['half-year'],
-    blurb: 'Барилгын бүтээн байгуулалтын идэвхтэй үеийн бүх сарын судалгаа, үнэ ханшийг багтаасан.',
-    features: ['6 сарын хэвлэмэл сэтгүүл', 'Бүх дугаарын цахим архив', 'Оффис, гэрийн хаягаар хүргэнэ', 'НӨАТ-ын цахим баримт'],
-    cta: 'Хагас жилээр захиалах',
-    featured: false,
-  },
-  {
-    id: 'yearly',
-    name: 'Бүтэн жилийн багц',
-    ...PLAN_PRICES.yearly,
-    blurb: 'Компани, төслийн оффис, архитектор, инженерүүдийн бүтэн жилийн мэргэжлийн ширээний ном.',
-    features: ['12 сарын бүх шинэ дугаар', 'Барилгын үнэ ханшийн жилийн тойм', 'Цахим номын сан бүтэн эрх', 'Шуурхай шуудангийн хүргэлт'],
-    cta: 'Жилийн захиалга хийх',
-    featured: true,
-  },
+  { id: 'quarterly', name: 'Улирлын багц', ...PLAN_PRICES.quarterly, featured: false },
+  { id: 'half-year', name: 'Хагас жилийн багц', ...PLAN_PRICES['half-year'], featured: false },
+  { id: 'yearly', name: 'Жилийн багц', ...PLAN_PRICES.yearly, featured: true },
 ] as const;
 
-const YEARLY = planSavings('yearly');
+const PLAN_TERMS = ['Сар бүрийн хэвлэмэл сэтгүүл гэр, оффисоор', 'Улаанбаатар хот дотор хүргэлт үнэгүй', 'НӨАТ-ын цахим баримт'];
 
 const BOARD = [
   { name: 'А.Энхтүвшин', role: 'БХБЯ-ны БТГ-ын мэргэжилтэн' },
@@ -60,10 +37,9 @@ const SALE_POINTS = [
   { name: 'Барилга Мега Стор', loc: 'БГД, 3-р хороолол', type: 'Төлөөлөгч' },
   { name: 'Скай Их Дэлгүүр', loc: 'Сүхбаатар дүүрэг', type: 'Салбар' },
   { name: 'УИД номын тасаг', loc: 'Чингэлтэй дүүрэг, Энхтайваны өргөн чөлөө', type: 'Салбар' },
-  { name: 'Барилга.МН төв оффис', loc: 'БЗД, 6-р хороо, 21-р сургуулийн баруун талд', type: 'Төв редакц' },
 ];
 
-// The home page's library shelf: newest titles, fewer on phones
+// The home page's library shelf: newest books, norms, standards… (fewer on phones)
 const HOME_SHELF = 16;
 const HOME_SHELF_PHONE = 8;
 
@@ -86,15 +62,6 @@ export function Home() {
   const { magazines, loaded } = useLibrary();
   const navigate = useNavigate();
   const [librarySearch, setLibrarySearch] = useState('');
-  const plansRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const row = plansRef.current;
-    const featured = row?.querySelector<HTMLElement>('[data-featured]');
-    if (row && featured && row.scrollWidth > row.clientWidth) {
-      row.scrollLeft = featured.offsetLeft - (row.clientWidth - featured.clientWidth) / 2;
-    }
-  }, []);
 
   const [showAllBoard, setShowAllBoard] = useState(false);
 
@@ -113,6 +80,10 @@ export function Home() {
   // The magazine has come out monthly since 2010, so its latest issue number
   // is how many issues have been published (titles read "…№191" or "…сэтгүүл 177")
   const issuesPublished = issues.reduce((max, mag) => Math.max(max, issueNo(mag) ?? 0), 0);
+
+  // Magazine issues have the lead and «Өмнөх дугаарууд» above; the library
+  // shelf shows the newest of everything else
+  const shelf = magazines.filter(m => m.category !== 'magazine');
 
   const btnInk =
     'inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-stone-950 hover:bg-stone-800 text-white text-sm font-semibold transition-colors';
@@ -323,14 +294,14 @@ export function Home() {
                   <div className="h-3 w-1/2 bg-stone-100" />
                 </div>
               ))
-            : magazines.slice(0, HOME_SHELF).map((item, i) => (
+            : shelf.slice(0, HOME_SHELF).map((item, i) => (
                 <div key={item.id} className={i >= HOME_SHELF_PHONE ? 'hidden md:contents' : 'contents'}>
                   <LibraryCard item={item} />
                 </div>
               ))}
         </div>
 
-        {loaded && magazines.length > HOME_SHELF_PHONE && (
+        {loaded && shelf.length > HOME_SHELF_PHONE && (
           <div className="text-center mt-14">
             <Link to="/tsahim-nomuud" className={btnLine}>
               Цааш үзэх <span className="font-normal opacity-70">({magazines.length.toLocaleString()} хэвлэл)</span>
@@ -344,86 +315,67 @@ export function Home() {
       <section id="subscriptions" className="scroll-mt-24">
         <SectionHead kicker="Захиалга" title="Сэтгүүлээ гэртээ, оффистоо хүлээн ав" />
 
-        {/* Yearly vs buying every month separately */}
-        <div className="mb-8 sm:mb-10 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-8 bg-[#EDE8DF] px-6 py-6 sm:px-10 sm:py-8">
-          <div>
-            <p className="text-sm text-stone-600">Сар бүр тусад нь авбал</p>
-            <p className="font-serif text-2xl sm:text-3xl font-bold text-stone-500 line-through decoration-2 tabular-nums">
-              {YEARLY.separately.toLocaleString()}₮
-            </p>
-            <p className="text-sm text-stone-600">{SINGLE_ISSUE_PRICE.toLocaleString()}₮ × 12 дугаар</p>
-          </div>
-          <ArrowRight className="hidden md:block w-6 h-6 text-stone-500" />
-          <div>
-            <p className="text-sm text-stone-600">Жилийн захиалгаар</p>
-            <p className="font-serif text-2xl sm:text-3xl font-bold text-stone-950 tabular-nums">
-              {PLAN_PRICES.yearly.price.toLocaleString()}₮
-            </p>
-            <p className="text-sm font-semibold text-emerald-800">
-              {YEARLY.saved.toLocaleString()}₮ хэмнэнэ — {YEARLY.percent}% хямд
-            </p>
-          </div>
-        </div>
-
-        {/* Phones: a swipeable row with the next plan peeking in; desktop: three ruled columns */}
-        <div
-          ref={plansRef}
-          className="flex md:grid md:grid-cols-3 gap-4 md:gap-0 overflow-x-auto md:overflow-visible snap-x snap-mandatory hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 md:border md:border-stone-900"
-        >
-          {PLANS.map((plan, i) => (
-            <div
-              key={plan.id}
-              data-featured={plan.featured || undefined}
-              className={`relative snap-center shrink-0 w-[82%] sm:w-[60%] md:w-auto p-7 sm:p-9 flex flex-col justify-between border md:border-0 ${
-                i > 0 ? 'md:border-l md:border-stone-900' : ''
-              } ${plan.featured ? 'bg-stone-950 text-white border-stone-950' : 'bg-white border-stone-900'}`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <p className={`text-sm font-semibold ${plan.featured ? 'text-amber-400' : 'text-amber-700'}`}>{plan.name}</p>
-                  {plan.featured && <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-stone-950 bg-amber-400 px-2 py-0.5">Хамгийн хямд</span>}
-                </div>
-                <h3 className="font-serif text-3xl font-bold mt-2">{plan.issues} дугаар</h3>
-                <p className={`mt-3 text-sm leading-relaxed ${plan.featured ? 'text-stone-300' : 'text-stone-600'}`}>{plan.blurb}</p>
-                <div className={`mt-6 pt-6 border-t ${plan.featured ? 'border-stone-700' : 'border-stone-200'}`}>
-                  <p className={`text-sm line-through tabular-nums ${plan.featured ? 'text-stone-500' : 'text-stone-400'}`}>
-                    {planSavings(plan.id).separately.toLocaleString()}₮
-                  </p>
-                  <p className="font-serif text-4xl font-bold tabular-nums">{plan.price.toLocaleString()}₮</p>
-                  <p className={`text-sm mt-1 ${plan.featured ? 'text-stone-400' : 'text-stone-500'}`}>
-                    {planSavings(plan.id).perIssue.toLocaleString()}₮ / нэг дугаар
-                  </p>
-                  <p
-                    className={`mt-3 inline-block text-sm font-semibold px-2 py-1 ${
-                      plan.featured ? 'bg-amber-400 text-stone-950' : 'bg-emerald-50 text-emerald-800'
-                    }`}
-                  >
-                    {planSavings(plan.id).saved.toLocaleString()}₮ хэмнэлт · {planSavings(plan.id).percent}%
-                  </p>
-                </div>
-                <ul className={`mt-6 space-y-2.5 text-sm ${plan.featured ? 'text-stone-200' : 'text-stone-700'}`}>
-                  {plan.features.map(feature => (
-                    <li key={feature} className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.featured ? 'text-amber-400' : 'text-amber-700'}`} />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <Link
-                to={`/subscribe?plan=${plan.id}`}
-                className={`mt-9 w-full block text-center py-3.5 text-sm font-semibold transition-colors ${
-                  plan.featured
-                    ? 'bg-amber-400 hover:bg-amber-300 text-stone-950'
-                    : 'border border-stone-950 text-stone-950 hover:bg-stone-950 hover:text-white'
+        {/* Stacked on phones, three columns on wide screens; the yearly plan leads */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-0 md:border md:border-stone-900">
+          {PLANS.map((plan, i) => {
+            const s = planSavings(plan.id);
+            const dark = plan.featured;
+            return (
+              <div
+                key={plan.id}
+                className={`flex flex-col border md:border-0 p-5 sm:p-7 ${i > 0 ? 'md:border-l md:border-stone-900' : ''} ${
+                  dark ? 'order-first md:order-none bg-stone-950 text-white border-stone-950' : 'bg-white border-stone-300'
                 }`}
               >
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={`text-sm font-semibold ${dark ? 'text-amber-400' : 'text-amber-700'}`}>{plan.name}</p>
+                    <p className={`text-sm ${dark ? 'text-stone-400' : 'text-stone-500'}`}>
+                      {plan.issues} дугаар · {s.perIssue.toLocaleString()}₮ / дугаар
+                    </p>
+                  </div>
+                  {dark && <span className="shrink-0 text-xs font-semibold text-stone-950 bg-amber-400 px-2 py-0.5">Хамгийн хямд</span>}
+                </div>
+
+                <div className="mt-4 flex items-baseline flex-wrap gap-x-3 gap-y-1">
+                  <p className="font-serif text-4xl font-bold tabular-nums">{plan.price.toLocaleString()}₮</p>
+                  <p className={`text-sm line-through tabular-nums ${dark ? 'text-stone-500' : 'text-stone-400'}`}>
+                    {s.separately.toLocaleString()}₮
+                  </p>
+                </div>
+                <p
+                  className={`mt-2 self-start text-sm font-semibold px-2 py-1 ${
+                    dark ? 'bg-amber-400 text-stone-950' : 'bg-emerald-50 text-emerald-800'
+                  }`}
+                >
+                  Сар бүр авснаас {s.saved.toLocaleString()}₮ ({s.percent}%) хямд
+                </p>
+
+                {/* Keeps the buttons level across the three columns */}
+                <div className="md:flex-1 md:min-h-8" />
+                <Link
+                  to={`/subscribe?plan=${plan.id}`}
+                  className={`mt-5 md:mt-0 w-full block text-center py-3.5 text-sm font-semibold transition-colors ${
+                    dark ? 'bg-amber-400 hover:bg-amber-300 text-stone-950' : 'border border-stone-950 text-stone-950 hover:bg-stone-950 hover:text-white'
+                  }`}
+                >
+                  Захиалах
+                </Link>
+              </div>
+            );
+          })}
         </div>
-        <p className="md:hidden text-center text-sm text-stone-500 mt-4">← Гүйлгэж бусад багцыг харна уу →</p>
+
+        <ul className="mt-5 flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-2 text-sm text-stone-600">
+          <li className="font-semibold text-stone-950">Бүх багцад:</li>
+          {PLAN_TERMS.map(term => (
+            <li key={term} className="flex items-start gap-2">
+              <Check className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+              {term}
+            </li>
+          ))}
+          <li className="text-stone-500">Нэг дугаар {SINGLE_ISSUE_PRICE.toLocaleString()}₮</li>
+        </ul>
       </section>
 
       {/* ─────────────── About */}
