@@ -1,7 +1,8 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Smartphone, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Turnstile, TURNSTILE_SITE_KEY } from '../components/Turnstile';
 
 // Mongolian numbers are 8 digits; accept them with or without +976
 function toE164(input: string): string | null {
@@ -11,12 +12,69 @@ function toE164(input: string): string | null {
   return null;
 }
 
+// One code a minute per number. The server enforces it (and hourly/daily
+// caps); the page just shows the wait instead of letting people hammer it.
+const RESEND_SECONDS = 60;
+const LAST_SENT_KEY = 'otp-last-sent';
+
+function lastSent(): { phone: string; at: number } | null {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_SENT_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+const waitText = (seconds: number) =>
+  seconds >= 3600 ? `${Math.ceil(seconds / 3600)} цаг` : seconds >= 60 ? `${Math.ceil(seconds / 60)} минут` : `${seconds} секунд`;
+
+// Turns a send error into words, and how long to wait if there is a limit
+function sendError(message: string): { text: string; wait?: number } {
+  // Our SMS hook: "SMS_LIMIT:<reason>:<seconds>"
+  const ours = message.match(/SMS_LIMIT:([a-z-]+):(\d+)/);
+  if (ours) {
+    const wait = Number(ours[2]) || RESEND_SECONDS;
+    switch (ours[1]) {
+      case 'not-mongolian':
+        return { text: 'Зөвхөн Монголын гар утасны дугаараар нэвтэрнэ.' };
+      case 'too-soon':
+        return { text: `Код саяхан илгээсэн. ${waitText(wait)}-ын дараа дахин оролдоно уу.`, wait };
+      case 'hourly':
+      case 'daily':
+        return { text: `Энэ дугаар руу хэт олон код илгээсэн байна. ${waitText(wait)}-ын дараа дахин оролдоно уу.`, wait };
+      default:
+        return { text: 'Түр ачаалал ихтэй байна. Хэсэг хугацааны дараа дахин оролдоно уу.', wait };
+    }
+  }
+  // Supabase's own limit: "...you can only request this after 45 seconds."
+  const supa = message.match(/after (\d+) seconds/i);
+  if (supa) return { text: `${waitText(Number(supa[1]))}-ын дараа дахин код авна уу.`, wait: Number(supa[1]) };
+  if (/captcha/i.test(message)) return { text: 'Хүн эсэхийг баталгаажуулах шалгалтыг дахин хийнэ үү.' };
+  if (/rate limit|too many/i.test(message)) return { text: 'Хэт олон оролдлого хийлээ. Хэсэг хугацааны дараа дахин оролдоно уу.', wait: RESEND_SECONDS };
+  return { text: 'Код илгээхэд алдаа гарлаа. Дахин оролдоно уу.' };
+}
+
 export function Login() {
   const [phoneNumber, setPhoneNumber] = useState('+976');
   const [verificationCode, setVerificationCode] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
+  // When this number may get another code (ms), and a clock to count down
+  const [waitUntil, setWaitUntil] = useState<{ phone: string; at: number } | null>(() => {
+    const last = lastSent();
+    return last && Date.now() - last.at < RESEND_SECONDS * 1000 ? { phone: last.phone, at: last.at + RESEND_SECONDS * 1000 } : null;
+  });
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!waitUntil || waitUntil.at <= now) return;
+    const t = setTimeout(() => setNow(Date.now()), 1000);
+    return () => clearTimeout(t);
+  }, [waitUntil, now]);
+  const secondsLeft = (phone: string | null) =>
+    phone && waitUntil && waitUntil.phone === phone ? Math.max(0, Math.ceil((waitUntil.at - now) / 1000)) : 0;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,6 +83,42 @@ export function Login() {
   const returnTo =
     location.state?.returnTo || (redirectParam && redirectParam.startsWith('/') ? redirectParam : '/profile');
 
+  const sendCode = async (phone: string) => {
+    if (secondsLeft(phone) > 0) return;
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError('Доорх «хүн эсэхийг» шалгах хэсгийг баталгаажуулна уу.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+      options: TURNSTILE_SITE_KEY ? { captchaToken } : undefined,
+    });
+    setLoading(false);
+    // A captcha token works once
+    if (TURNSTILE_SITE_KEY) setCaptchaReset(n => n + 1);
+    if (error) {
+      console.error('OTP send failed:', error.message);
+      const { text, wait } = sendError(error.message);
+      setError(text);
+      if (wait) {
+        setWaitUntil({ phone, at: Date.now() + wait * 1000 });
+        setNow(Date.now());
+      }
+      return;
+    }
+    const at = Date.now();
+    try {
+      localStorage.setItem(LAST_SENT_KEY, JSON.stringify({ phone, at }));
+    } catch {
+      /* storage unavailable: the server still enforces the limit */
+    }
+    setWaitUntil({ phone, at: at + RESEND_SECONDS * 1000 });
+    setNow(at);
+    setSentTo(phone);
+  };
+
   const handleSendCode = async (e: FormEvent) => {
     e.preventDefault();
     const phone = toE164(phoneNumber);
@@ -32,18 +126,12 @@ export function Login() {
       setError('Утасны дугаараа зөв оруулна уу (8 оронтой).');
       return;
     }
-
-    setLoading(true);
-    setError('');
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    setLoading(false);
-    if (error) {
-      console.error('OTP send failed:', error.message);
-      setError('Код илгээхэд алдаа гарлаа. Дахин оролдоно уу.');
-      return;
-    }
-    setSentTo(phone);
+    await sendCode(phone);
   };
+
+  const typedPhone = toE164(phoneNumber);
+  const formWait = secondsLeft(typedPhone);
+  const resendWait = secondsLeft(sentTo);
 
   const handleVerifyCode = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,14 +185,25 @@ export function Login() {
               />
             </div>
             
+            <Turnstile onToken={setCaptchaToken} resetKey={captchaReset} />
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || formWait > 0 || (!!TURNSTILE_SITE_KEY && !captchaToken)}
               className="w-full flex items-center justify-center bg-[#0F172A] text-white hover:bg-slate-800 px-4 py-3 rounded-xl font-bold transition-colors disabled:opacity-70 shadow-sm"
             >
-              {loading ? 'Уншиж байна...' : 'Код авах'}
-              {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
+              {loading ? 'Уншиж байна...' : formWait > 0 ? `Дахин код авах (${formWait})` : 'Код авах'}
+              {!loading && formWait === 0 && <ArrowRight className="ml-2 h-5 w-5" />}
             </button>
+            {formWait > 0 && typedPhone && (
+              <button
+                type="button"
+                onClick={() => setSentTo(typedPhone)}
+                className="w-full text-sm text-[#F59E0B] hover:text-[#D97706] font-bold"
+              >
+                Илгээсэн кодоо оруулах
+              </button>
+            )}
           </form>
         ) : (
           <form onSubmit={handleVerifyCode} className="space-y-6">
@@ -137,13 +236,23 @@ export function Login() {
               {!loading && <ShieldCheck className="ml-2 h-5 w-5" />}
             </button>
             
-            <div className="text-center mt-4">
+            {resendWait === 0 && <Turnstile onToken={setCaptchaToken} resetKey={captchaReset} />}
+
+            <div className="flex items-center justify-between mt-4 text-sm">
               <button
                 type="button"
-                onClick={() => { setSentTo(null); setVerificationCode(''); }}
-                className="text-sm text-[#F59E0B] hover:text-[#D97706] font-bold"
+                onClick={() => { setSentTo(null); setVerificationCode(''); setError(''); }}
+                className="text-[#F59E0B] hover:text-[#D97706] font-bold"
               >
                 Дугаар өөрчлөх
+              </button>
+              <button
+                type="button"
+                onClick={() => sentTo && sendCode(sentTo)}
+                disabled={loading || resendWait > 0 || (!!TURNSTILE_SITE_KEY && !captchaToken)}
+                className="font-bold text-slate-700 hover:text-[#0F172A] disabled:text-slate-400 disabled:cursor-not-allowed"
+              >
+                {resendWait > 0 ? `Дахин илгээх (${resendWait})` : 'Код дахин илгээх'}
               </button>
             </div>
           </form>

@@ -7,6 +7,7 @@ import { admin, isAdminUser, loadIssuePrices, loadMagazineRows, userIdFromToken,
 import { createInvoice, paidAmount, QPAY_IS_SANDBOX } from './qpay.js';
 import { otpMessage, sendSms, smsConfigured, verifySupabaseHook } from './sms.js';
 import { registerAccountRoutes } from './account.js';
+import { allowSms, refusalMessage } from './smsGuard.js';
 import { registerStatsRoutes } from './stats.js';
 import { emailConfigured } from './email.js';
 
@@ -35,7 +36,13 @@ app.post('/api/auth/send-sms', express.raw({ type: '*/*' }), async (req, res) =>
     const phone: string = payload?.user?.phone || '';
     const code: string = payload?.sms?.otp || '';
     if (!phone || !code) return res.status(400).json({ error: { http_code: 400, message: 'Missing phone or code' } });
-    await sendSms(phone, otpMessage(code));
+    // Flood and fraud limits; Supabase passes the message on to the login page
+    const allowed = await allowSms(phone, 'login');
+    if (!allowed.ok) {
+      console.warn('Login SMS refused:', allowed.reason, phone.slice(0, -4) + '****');
+      return res.status(429).json({ error: { http_code: 429, message: refusalMessage(allowed) } });
+    }
+    await sendSms(allowed.phone, otpMessage(code));
     return res.json({});
   } catch (error: any) {
     console.error('Send SMS hook failed:', error.message);

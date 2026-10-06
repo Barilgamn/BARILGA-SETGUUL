@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import type express from 'express';
 import { admin, isAdminUser, loadMagazineRows, userIdFromToken } from './supabase.js';
 import { sendSms } from './sms.js';
+import { allowSms, normalizeMnPhone } from './smsGuard.js';
 import { emailConfigured, newIssueEmail, sendEmails, verifyEmail } from './email.js';
 
 type Helpers = {
@@ -15,13 +16,6 @@ type Helpers = {
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_AFTER_MS = 60 * 1000;
 const MAX_ATTEMPTS = 5;
-
-// Mongolian mobile numbers: 8 digits, optionally written with +976
-export function normalizeMnPhone(input: string): string | null {
-  let digits = String(input || '').replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('976')) digits = digits.slice(3);
-  return /^[5-9]\d{7}$/.test(digits) ? `+976${digits}` : null;
-}
 
 const hashCode = (userId: string, code: string) =>
   crypto
@@ -64,6 +58,10 @@ export function registerAccountRoutes(app: express.Express, { bearer, appUrl }: 
       if (pending && Date.now() - Number(pending.sent_at) < RESEND_AFTER_MS) {
         return res.status(429).json({ error: 'wait', retryIn: Math.ceil((RESEND_AFTER_MS - (Date.now() - Number(pending.sent_at))) / 1000) });
       }
+
+      // The shared flood limits, on top of the one-a-minute rule above
+      const allowed = await allowSms(phone, 'phone-change');
+      if (!allowed.ok) return res.status(429).json({ error: 'wait', retryIn: allowed.retryIn || 60 });
 
       const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
       const now = Date.now();
